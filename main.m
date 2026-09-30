@@ -9,6 +9,11 @@ function results = main()
 %   prints the comparison against the published Tables 3 and 4, and saves a
 %   summary table plus the paper's figure set (Figs 6-19) in results/.
 %
+%   If TUNE_FOPID_HYBRID has been run, the FOPID tuned by the FO-PSO/GWO
+%   hybrid (results/fopso_gwo_gains.mat) is simulated as a third controller,
+%   compared against FOPID and the paper's FBPA-FOPID, and drawn in every
+%   figure.
+%
 %   Runtime: about one minute.
 %
 %   Pipeline:
@@ -24,10 +29,14 @@ if ~exist('results', 'dir'), mkdir('results'); end
 
 P = robot_params();
 controllers = {'PID', 'FOPID'};
+if exist(fullfile('results', 'fopso_gwo_gains.mat'), 'file')
+    controllers{end+1} = 'FOPSO_GWO';
+end
 
 % published values: [overshoot %, adjustment time s, peak time s, sine MSE, sine torque]
 paper.PID   = [54.6 2.44 1.39 2.27e-2 3.7422e4];
 paper.FOPID = [31.2 1.89 1.33 0.88e-2 2.5686e4];
+paper.FBPA  = [22.1 1.43 1.09 0.37e-2 2.3154e4];
 
 fprintf('Simulating %d controllers x 2 experiments ...\n', numel(controllers));
 for i = 1:numel(controllers)
@@ -71,6 +80,18 @@ for k = 1:5
     p2 = paper.FOPID(k);  m2 = results.FOPID.summary(k);
     out(['| %s | ' fmt{k} ' | ' fmt{k} ' | %+.1f%% | ' fmt{k} ' | ' fmt{k} ' | %+.1f%% |\n'], ...
         labels{k}, p1, m1, 100*(m1/p1 - 1), p2, m2, 100*(m2/p2 - 1));
+end
+
+if isfield(results, 'FOPSO_GWO')
+    out('\n# FOPID tuned by the FO-PSO/GWO hybrid\n\n');
+    out('| Metric | FOPID (this work) | FOPSO-GWO | change vs FOPID | Paper FBPA-FOPID |\n');
+    out('|---|---:|---:|---:|---:|\n');
+    for k = 1:5
+        m0 = results.FOPID.summary(k);
+        m3 = results.FOPSO_GWO.summary(k);
+        out(['| %s | ' fmt{k} ' | ' fmt{k} ' | %+.1f%% | ' fmt{k} ' |\n'], ...
+            labels{k}, m0, m3, 100*(m3/m0 - 1), paper.FBPA(k));
+    end
 end
 
 rows = {'Step overshoot (%)',        'step_metrics', 'overshoot',       '%.1f'

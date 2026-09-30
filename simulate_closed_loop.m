@@ -6,13 +6,17 @@ function out = simulate_closed_loop(P, gains, reference, opt)
 %     gains      6x1 fields Kp, Ki, Kd, lambda, mu
 %     reference  'step'  1 rad on every joint at t = 1 s
 %                'sine'  sin(1.5 t) rad on every joint
-%     opt        optional: dt (default 1e-3), T (default 5), t_step, omega
+%     opt        optional: dt (default 1e-3), T (default 5), t_step, omega,
+%                abort_err (default Inf): stop early once any |error| exceeds
+%                this value or the state stops being finite; used by the
+%                gain tuner to discard unstable candidates quickly
 %
 %   Returns
 %     out.t   1xNt time vector
 %     out.r   6xNt reference
 %     out.q   6xNt joint angles
 %     out.u   6xNt joint torques
+%     out.diverged  true if the run was stopped by abort_err
 %
 %   The controllers run at the sample time dt with a zero-order hold, and the
 %   plant is integrated between samples with a fourth-order Runge-Kutta step.
@@ -25,6 +29,7 @@ if ~isfield(opt, 'dt'),     opt.dt = 1e-3;   end
 if ~isfield(opt, 'T'),      opt.T = 5;       end
 if ~isfield(opt, 't_step'), opt.t_step = 1;  end
 if ~isfield(opt, 'omega'),  opt.omega = 1.5; end
+if ~isfield(opt, 'abort_err'), opt.abort_err = Inf; end
 
 dt = opt.dt;
 t  = 0:dt:opt.T;
@@ -44,9 +49,14 @@ out.t = t;
 out.r = r;
 out.q = zeros(6, Nt);
 out.u = zeros(6, Nt);
+out.diverged = false;
 
 for k = 1:Nt
     e = r(:, k) - q;
+    if ~all(isfinite(q)) || ~all(isfinite(qd)) || max(abs(e)) > opt.abort_err
+        out.diverged = true;
+        break;
+    end
     [u, C] = fopid_update(C, e);
 
     out.q(:, k) = q;
@@ -60,6 +70,14 @@ for k = 1:Nt
     [k4q, k4v] = derivative(P, q + dt*k3q,   qd + dt*k3v,   u);
     q  = q  + dt/6 * (k1q + 2*k2q + 2*k3q + k4q);
     qd = qd + dt/6 * (k1v + 2*k2v + 2*k3v + k4v);
+end
+
+if out.diverged                      % keep only the samples actually run
+    keep = 1:max(k - 1, 1);
+    out.t = out.t(keep);
+    out.r = out.r(:, keep);
+    out.q = out.q(:, keep);
+    out.u = out.u(:, keep);
 end
 end
 

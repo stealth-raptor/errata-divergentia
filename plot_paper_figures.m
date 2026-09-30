@@ -17,8 +17,10 @@ function plot_paper_figures(results, outdir)
 %   the paper reuses red for FOPID, because no reference is drawn there; that
 %   inconsistency is kept so the figures match the published ones.
 %
-%   The paper's own figures additionally carry an FBPA-FOPID curve; only PID
-%   and FOPID are produced here, and both are labelled in every panel.
+%   The paper's own figures additionally carry an FBPA-FOPID curve.  In its
+%   place, when results has a FOPSO_GWO entry (the FOPID tuned by
+%   TUNE_FOPID_HYBRID), that controller is drawn as a third, magenta curve.
+%   Every curve is labelled in every panel.
 %
 %   See also MAIN.
 
@@ -28,6 +30,11 @@ if ~exist(outdir, 'dir'), mkdir(outdir); end
 RED   = [1 0 0];
 GREEN = [0 1 0];
 BLUE  = [0 0 1];
+MAGENTA = [0.85 0 0.85];
+
+has_hybrid = isfield(results, 'FOPSO_GWO');
+names = {'PID', 'FOPID'};
+if has_hybrid, names{end+1} = 'FOPSO-GWO'; end
 
 % ---- Figs 6-11 (step) and 13-18 (sine): per joint, two panels ------------
 experiments = {'step', 6, 'with step response'
@@ -47,8 +54,12 @@ for ex = 1:size(experiments, 1)
         plot(run_pid.t,   run_pid.r(j, :), 'Color', RED,   'LineWidth', 1);
         plot(run_pid.t,   run_pid.q(j, :), 'Color', GREEN, 'LineWidth', 1);
         plot(run_fopid.t, run_fopid.q(j, :), 'Color', BLUE, 'LineWidth', 1);
+        if has_hybrid
+            run_h = results.FOPSO_GWO.(name);
+            plot(run_h.t, run_h.q(j, :), 'Color', MAGENTA, 'LineWidth', 1);
+        end
         style_axis(sprintf('joint%d /rad', j));
-        legend({'dir', 'PID', 'FOPID'}, 'Location', 'northeast');
+        legend([{'dir'}, names], 'Location', 'northeast');
         xlabel({'time / s', '', '(a) position tracking trajectory'});
 
         % (b) tracking error
@@ -59,8 +70,11 @@ for ex = 1:size(experiments, 1)
         end
         plot(run_pid.t,   run_pid.r(j, :)   - run_pid.q(j, :),   'Color', GREEN, 'LineWidth', 1);
         plot(run_fopid.t, run_fopid.r(j, :) - run_fopid.q(j, :), 'Color', err_colour_fopid, 'LineWidth', 1);
+        if has_hybrid
+            plot(run_h.t, run_h.r(j, :) - run_h.q(j, :), 'Color', MAGENTA, 'LineWidth', 1);
+        end
         style_axis(sprintf('joint%d err/rad', j));
-        legend({'PID', 'FOPID'}, 'Location', 'northeast');
+        legend(names, 'Location', 'northeast');
         xlabel({'time / s', '', '(b) tracking error'});
 
         num = first + j - 1;
@@ -81,9 +95,12 @@ for tq = 1:size(torques, 1)
         subplot(3, 2, j); hold on; grid on; box on;
         plot(results.PID.(name).t,   results.PID.(name).u(j, :),   'Color', GREEN, 'LineWidth', 1);
         plot(results.FOPID.(name).t, results.FOPID.(name).u(j, :), 'Color', BLUE,  'LineWidth', 1);
+        if has_hybrid
+            plot(results.FOPSO_GWO.(name).t, results.FOPSO_GWO.(name).u(j, :), 'Color', MAGENTA, 'LineWidth', 1);
+        end
         style_axis(sprintf(torques{tq, 3}, j));
         xlabel('time / s');
-        legend({'PID', 'FOPID'}, 'Location', 'northeast');
+        legend(names, 'Location', 'northeast');
     end
     file = fullfile(outdir, sprintf('fig%02d_%s_torque.png', torques{tq, 2}, name));
     exportgraphics(fig, file, 'Resolution', 200);

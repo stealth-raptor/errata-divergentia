@@ -39,6 +39,54 @@ Every panel labels both controllers. Colours are the paper's own: reference ("di
 
 Nine of the ten published values are reproduced within 5 %; the FOPID torque is 16 % high. FOPID improves on PID exactly as the paper reports: lower overshoot, shorter settling time and less than half the tracking error.
 
+## Improving on FOPID: FO-PSO / GWO hybrid tuning
+
+The paper improves its FOPID with FBPA, a fractional-order PSO fused with beetle antennae search. This repository adds a counterpart: a **fractional-order PSO hybridised with the grey wolf optimiser (FO-PSO/GWO)**. It re-tunes all 30 FOPID parameters (Kp, Ki, Kd, λ, μ for each of the six joints) and starts from the existing FOPID gains.
+
+```matlab
+benchmark_optimizer            % seconds: sanity check on the paper's test functions
+tune_fopid_hybrid              % long: tunes the gains, writes results/fopso_gwo_gains.mat
+main                           % now also simulates, tabulates and plots FOPSO_GWO
+```
+
+### The algorithm (`hybrid_fopso_gwo.m`)
+
+The algorithm keeps the velocity equation of FBPA (paper Eq. 26) and replaces the beetle term with a grey-wolf term:
+
+```
+v(k+1) = (w-1+a) v(k) + a(1-a)/2 v(k-1) + a(1-a)(2-a)/6 v(k-2) + a(1-a)(2-a)(3-a)/24 v(k-3)   fractional memory, Eq. 25
+         + c1 r1 (pbest - x) + c2 r2 (gbest - x)                                               PSO
+         + c3 r3 (x_gwo - x)                                                                    GWO
+x_gwo  = mean over L in {alpha, beta, delta} of  L - A .* |C .* L - x|,   A = 2 a_g r - a_g,  C = 2 r'
+```
+
+Alpha, beta and delta are the three best personal bests. The inertia w falls linearly from 0.9 to 0.4. The fractional order a follows Eq. 27 (0.9 → 0.4). The GWO coefficient falls as a_g = 2(1 − k/K)², so the GWO term first explores around the three leaders and then refines around them.
+
+Two settings differ from the paper, and both were chosen by benchmarking on its own four 30-D test functions:
+
+* **c1 = c2 = c3 = 1** instead of 2. With three attractors at strength 2, the hybrid did *worse* than plain FO-PSO.
+* **Quadratic a_g decay** instead of GWO's usual linear one.
+
+With both changes the hybrid ended roughly 5–30× lower than FO-PSO (paper settings) on all four functions. Plain FO-PSO does worse at c = 1, so the improvement comes from the GWO term. `benchmark_optimizer` repeats this comparison (IPSO vs FO-PSO vs FO-PSO/GWO, all run through the same code with terms switched off).
+
+### The tuning (`tune_fopid_hybrid.m`, `fopid_fitness.m`)
+
+* **Search space.** Kp, Ki and Kd are searched on a log10 scale (the fitted gains span eight decades), and λ ∈ [0.5, 1.95] and μ ∈ [0.5, 1.6] on a linear scale. Everything is mapped to the unit box.
+* **Seeding.** The current FOPID gains are one particle, and 30 % of the swarm starts as jittered copies of them. Because gbest never gets worse, **the result can never be worse than the current FOPID** under the chosen cost.
+* **Cost.** The default `'composite'` cost is the ITAE (paper Eq. 29) of both experiments plus the five paper metrics (overshoot, adjustment time, peak time, sine MSE, sine torque), each divided by the FOPID value. The current FOPID therefore scores exactly 1, and anything below 1 is better. An extra penalty applies to any metric that ends up worse than FOPID, which steers the search towards gain sets that improve every metric at once. `tune_fopid_hybrid(struct('Fitness', 'itae'))` uses the paper's pure step-ITAE instead.
+* **Unstable candidates** are aborted as soon as any joint error exceeds 5 rad. They are still ranked by how long they held on.
+
+### Runtime
+
+Each cost evaluation is two 5 s simulations. The paper's budget (30 particles × 100 iterations) means about 3000 evaluations, which is an overnight-scale run in serial. The tuner prints an ETA after the first iteration. To manage the runtime:
+
+* With the Parallel Computing Toolbox installed, the swarm is evaluated with `parfor` automatically.
+* A checkpoint (`results/fopso_gwo_checkpoint.mat`) is saved after every iteration. Calling `tune_fopid_hybrid` again with the same options resumes from it, and it is deleted once the run completes.
+* A short trial already improves on FOPID, because FOPID is in the swarm:
+  `tune_fopid_hybrid(struct('PopSize', 12, 'MaxIter', 15))`.
+
+When `results/fopso_gwo_gains.mat` exists, `main` adds a `FOPSO_GWO` controller. It then writes a table comparing it with FOPID and with the paper's FBPA-FOPID into `results/summary.md`, and draws it in magenta in every figure.
+
 ## Architecture
 
 The code follows the physical structure of the problem: a plant, a controller, a simulation loop, and metrics.
@@ -50,6 +98,10 @@ main.m                      runner: both controllers x both experiments, tables 
 ├── robot_dynamics.m        M(q) qdd + h(q,qd) = tau, by recursive Newton-Euler
 │
 ├── controller_gains.m      the tuned per-joint gains for PID and FOPID
+├── hybrid_fopso_gwo.m      FO-PSO / grey-wolf hybrid optimiser
+├── tune_fopid_hybrid.m     tunes the 30 FOPID parameters with it
+├── fopid_fitness.m         cost of one gain set (ITAE + paper metrics)
+├── benchmark_optimizer.m   optimiser check on the paper's test functions
 ├── fopid_controller.m      builds the six joint controllers
 ├── fopid_update.m          one control step: u = Kp e + Ki D^-lambda e + Kd D^mu e
 ├── fractional_operator.m   Oustaloup approximation of s^alpha, discretised

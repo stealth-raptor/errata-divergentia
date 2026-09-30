@@ -3,6 +3,9 @@ function gains = controller_gains(controller)
 %
 %   gains = CONTROLLER_GAINS('PID')    classical PID  (lambda = mu = 1)
 %   gains = CONTROLLER_GAINS('FOPID')  fractional-order PID
+%   gains = CONTROLLER_GAINS('FOPSO_GWO')  FOPID tuned by the FO-PSO/GWO
+%                                      hybrid, read from the file written by
+%                                      TUNE_FOPID_HYBRID
 %
 %   Each field is 6x1, one entry per joint. The paper publishes no gains,
 %   so these were obtained by fitting the simulation to the five published
@@ -10,7 +13,7 @@ function gains = controller_gains(controller)
 %   with a pattern-search optimiser. They reproduce the paper's baseline;
 %   they are not claimed to be the authors' own gains.
 %
-%   See also FOPID_CONTROLLER.
+%   See also FOPID_CONTROLLER, TUNE_FOPID_HYBRID.
 
 switch upper(controller)
     case 'PID'
@@ -25,7 +28,21 @@ switch upper(controller)
         gains.Kd     = [176.047189996 174.999508748 38.021255025 3.8196332254 1.94140625 0.970703125]';
         gains.lambda = [1.859375 1.859375 1.859375 1.859375 1.859375 1.859375]';
         gains.mu     = [1 1 1.0625 1 1.125 1]';
+    case 'FOPSO_GWO'
+        file = fopso_gwo_file();
+        if ~exist(file, 'file')
+            error('controller_gains:untuned', ...
+                  'no tuned gains in %s; run tune_fopid_hybrid first', file);
+        end
+        S = load(file, 'gains');
+        gains = S.gains;
     otherwise
         error('controller_gains:name', 'unknown controller ''%s''', controller);
 end
+end
+
+% ------------------------------------------------------------------------
+function file = fopso_gwo_file()
+%FOPSO_GWO_FILE  Where TUNE_FOPID_HYBRID saves its gains.
+file = fullfile(fileparts(mfilename('fullpath')), 'results', 'fopso_gwo_gains.mat');
 end
