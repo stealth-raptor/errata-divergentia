@@ -1,5 +1,21 @@
 # Issues found in the source paper
 
+> **Audit note (branch `audit`, see `docs/audit_report.md`).** The published curves have since
+> been extracted exactly from the PDF's vector graphics, which corrects parts of this document:
+>
+> * **Section 1 is withdrawn.** The paper logged its signals every 0.01 s, so its torque sums are over
+>   501 samples, not 5001. The "physical floor" for Table-2 lengths is therefore ~5.8e3, not 5.79e4,
+>   and nothing contradicts Table 2. The published torques are in any case dominated by numerical
+>   spikes (audit report 3.4). The audited code uses Table 2's lengths as printed.
+> * **Section 2, figure digitisation:** superseded by the exact extraction. The overshoots from the
+>   figures are 59.1 % (PID) and 34.5 % (FOPID), and the MSEs 2.263e-2 and 8.83e-3.
+> * **Section 3, torque metric and time origin:** now resolved from the figures (0.01 s grid, times
+>   from t = 0). The settling band that best fits Table 3 is 5 %.
+> * **New findings**, in the audit report: Table 4's torque column is a permutation of Fig. 19
+>   (3.3); the torque figures are not outputs of the control law (3.4); the joint-1 step and sine
+>   curves are mutually inconsistent under the paper's own model (4).
+
+
 Jiang, Zhang & Liu, *Trajectory tracking control of a 6-DOF robotic arm based on improved FOPID*, IJDC 13:137 (2025).
 
 Found while reproducing the paper from scratch. Two framing points first, because both matter if the findings are challenged:

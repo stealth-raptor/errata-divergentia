@@ -19,11 +19,12 @@ function m = performance_metrics(out, reference, band)
 %     * times are measured from t = 0, as the peak times of 1.09-1.39 s for a
 %       step applied at t = 1 s require;
 %     * MSE and torque on the 0.01 s grid: Table 4's MSE recomputed this
-%       way from the published curves agrees with the table to 0.5 %;
+%       way from the published curves agrees with the table to 0.7 %;
 %     * the adjustment (settling) time uses a +-5 % band: recomputed from
-%       the published step curves it gives 2.33 / 1.95 / 1.53 s against the
-%       table's 2.44 / 1.89 / 1.43 s, where the 2 % band gives 2.75 / 2.14 /
-%       1.68 s (joint 5 under PID never enters the 2 % band in the paper).
+%       the published step curves (PID / FOPID / FBPA-FOPID) it gives
+%       2.32 / 1.95 / 1.52 s against the table's 2.44 / 1.89 / 1.43 s, where
+%       the 2 % band gives 3.12 / 2.13 / 1.68 s (joint 5 under PID never
+%       enters the 2 % band in the paper).
 %   A joint that never settles is counted at the 5 s horizon.
 %
 %   See also SIMULATE_CLOSED_LOOP.

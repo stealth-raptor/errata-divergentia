@@ -26,8 +26,9 @@ function P = robot_params(opt)
 %     * Kinematic structure: the UR5 of Fig. 3, standard DH with
 %       alpha = [pi/2 0 0 pi/2 -pi/2 0].
 %     * Centre of mass: not published.  Default: at the origin of each DH
-%       frame (r = 0), the Robotics Toolbox default; the published curves
-%       are matched best with it (docs/audit_report.md, model selection).
+%       frame (r = 0), the Robotics Toolbox default.  The published curves
+%       are matched at least as well with it as with the alternatives
+%       (docs/audit_report.md, Sect. 4.2).
 %     * Gravity: the model contains G(q) (Eq. 21) but g = 0 by default.
 %       The published step responses are exactly flat before the step
 %       (Figs 6-11, drawn as a single straight segment over 0-0.99 s),

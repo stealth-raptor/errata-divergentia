@@ -23,7 +23,7 @@ function out = simulate_closed_loop(P, gains, reference, opt)
 %   1 at t = 1.00 s, and the published torque curves have one vertex every
 %   0.01 s).  The paper's metrics are computed on those samples: the MSE of
 %   Table 4 recomputed from the published curves on this grid reproduces the
-%   table to within 0.5 %.  Everything is therefore logged at 0.01 s.
+%   table to within 0.7 %.  Everything is therefore logged at 0.01 s.
 %
 %   See also ROBOT_DYNAMICS, FOPID_CONTROLLER, PERFORMANCE_METRICS.
 

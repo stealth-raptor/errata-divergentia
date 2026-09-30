@@ -19,8 +19,9 @@ function plot_paper_figures(results, outdir)
 %   and 1.00 s exactly as in the published figures.
 %
 %   In addition, compare_step.png and compare_sine.png overlay every
-%   published curve (read from the paper's vector graphics) on the
-%   reproduction, joint by joint, with the rms difference in each title.
+%   published curve (thick black, read from the paper's vector graphics)
+%   and the reproduction (thin colour), joint by joint, with the rms
+%   difference in each title.
 %
 %   Works in Octave (gnuplot or Qt toolkit) and MATLAB.
 %
@@ -94,8 +95,8 @@ for ex = {'step', 'sine'}
         for j = 1:6
             subplot(6, 2, 2*(j-1) + c); hold on; grid on; box on;
             plot(pap.t, pap.r(j, :), 'Color', [1 .6 .6], 'LineWidth', 0.8);
-            plot(pap.t, pap.q(j, :), 'k', 'LineWidth', 2.2);
-            plot(sim.t, sim.q(j, :), '--', 'Color', ctrl{c, 2}, 'LineWidth', 1.4);
+            plot(pap.t, pap.q(j, :), 'k', 'LineWidth', 3);
+            plot(sim.t, sim.q(j, :), '-', 'Color', ctrl{c, 2}, 'LineWidth', 1.2);
             rms_err = sqrt(mean((sim.q(j, :) - pap.q(j, :)).^2));
             title(sprintf('%s joint %d (%s):  rms difference %.3f rad', ctrl{c, 1}, j, name, rms_err));
             ylabel(sprintf('joint%d /rad', j));
