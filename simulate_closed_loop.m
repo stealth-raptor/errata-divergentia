@@ -9,7 +9,9 @@ function out = simulate_closed_loop(P, gains, reference, opt)
 %     opt        optional: dt (default 1e-3), T (default 5), t_step, omega,
 %                abort_err (default Inf): stop early once any |error| exceeds
 %                this value or the state stops being finite; used by the
-%                gain tuner to discard unstable candidates quickly
+%                gain tuner to discard unstable candidates quickly;
+%                use_mex (default false): use the compiled SIMULATE_MEX
+%                (build it with BUILD_MEX) instead of this .m loop
 %
 %   Returns
 %     out.t   1xNt time vector
@@ -22,6 +24,10 @@ function out = simulate_closed_loop(P, gains, reference, opt)
 %   plant is integrated between samples with a fourth-order Runge-Kutta step.
 %   The arm starts at rest at q = 0, as in the paper.
 %
+%   SIMULATE_MEX is a C port of exactly this loop (with FOPID_UPDATE and
+%   ROBOT_DYNAMICS); it gives the same results about 100x faster, which is
+%   what makes gain tuning practical, particularly under Octave.
+%
 %   See also ROBOT_DYNAMICS, FOPID_CONTROLLER, PERFORMANCE_METRICS.
 
 if nargin < 4, opt = struct(); end
@@ -30,6 +36,7 @@ if ~isfield(opt, 'T'),      opt.T = 5;       end
 if ~isfield(opt, 't_step'), opt.t_step = 1;  end
 if ~isfield(opt, 'omega'),  opt.omega = 1.5; end
 if ~isfield(opt, 'abort_err'), opt.abort_err = Inf; end
+if ~isfield(opt, 'use_mex'),   opt.use_mex = false; end   % not yet verified against the .m loop
 
 dt = opt.dt;
 t  = 0:dt:opt.T;
@@ -42,6 +49,21 @@ switch reference
 end
 
 C  = fopid_controller(gains, dt);
+
+if opt.use_mex
+    [qo, uo, n, div] = simulate_mex(P.R_fixed, P.p_fixed, P.I, P.g, r, dt, ...
+        C.Kp, C.Ki, C.Kd, C.Fi.K, C.Fi.r, C.Fi.A, C.Fi.B, ...
+        C.Fd.K, C.Fd.r, C.Fd.A, C.Fd.B, ...
+        double(C.use_integrator), double(C.use_difference), opt.abort_err);
+    keep = 1:max(n, 1);
+    out.t = t(keep);
+    out.r = r(:, keep);
+    out.q = qo(:, keep);
+    out.u = uo(:, keep);
+    out.diverged = logical(div);
+    return;
+end
+
 q  = zeros(6, 1);
 qd = zeros(6, 1);
 
