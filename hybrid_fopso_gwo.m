@@ -124,8 +124,9 @@ else
 end
 
 t_start = tic;
-k_first = st.k;                      % for the ETA after a resume
+t_iter  = [];                        % durations of the iterations of this call
 for k = st.k + 1 : opts.MaxIter
+    t_k = tic;
     tau = k / opts.MaxIter;
     w   = opts.wmax - (opts.wmax - opts.wmin) * tau;
     a   = opts.alpha0 - opts.alpha_drop * tau;
@@ -172,8 +173,12 @@ for k = st.k + 1 : opts.MaxIter
     st.mean_history(k) = mean(F(isfinite(F)));
 
     if opts.Verbose
+        % the ETA follows the last few iterations: early ones are cheap
+        % because unstable candidates are aborted within a fraction of a
+        % second, and iterations slow down as more of the swarm is stable
         el = toc(t_start);
-        eta = el / (k - k_first) * (opts.MaxIter - k);
+        t_iter(end+1) = toc(t_k); %#ok<AGROW>
+        eta = mean(t_iter(max(1, end-2):end)) * (opts.MaxIter - k);
         fprintf('  iter %3d/%d  best %.6g  swarm mean %.6g  (%.0f s, ETA %s)\n', ...
                 k, opts.MaxIter, st.gf, st.mean_history(k), el, format_time(eta));
     end
