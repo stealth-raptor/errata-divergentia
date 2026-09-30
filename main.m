@@ -6,16 +6,23 @@ function results = main()
 %   Runs both controllers through both experiments of the paper,
 %     step response : 1 rad on every joint at t = 1 s
 %     sine tracking : sin(1.5 t) rad on every joint
-%   prints the comparison against the published Tables 3 and 4, and saves a
-%   summary table plus the paper's figure set (Figs 6-19) in results/.
+%   and compares them with the paper in three ways:
+%     1. the published Tables 3 and 4;
+%     2. the same metrics recomputed from the paper's own published curves
+%        (read from the vector graphics of the PDF, see PAPER_CURVES) -- the
+%        figures and tables of the paper do not fully agree with each other;
+%     3. the published curves themselves, joint by joint (rms difference).
+%   Saves results/summary.md, the paper's figure set (Figs 6-19), two
+%   comparison figures and results/simulation_results.mat.
 %
-%   Runtime: about one minute.
+%   Runtime in Octave: a few minutes (four 5 s simulations at 1 ms).
 %
 %   Pipeline:
-%     ROBOT_PARAMS         -> arm parameters (UR5, Table-2 masses/inertias)
-%     CONTROLLER_GAINS     -> tuned per-joint gains
+%     ROBOT_PARAMS         -> arm parameters (Table 2 of the paper)
+%     CONTROLLER_GAINS     -> gains identified from the published curves
 %     SIMULATE_CLOSED_LOOP -> closed-loop simulation (ROBOT_DYNAMICS + FOPID_*)
 %     PERFORMANCE_METRICS  -> the metrics defined in the paper
+%     PAPER_CURVES         -> the paper's own published curves
 %     PLOT_PAPER_FIGURES   -> the figures, in the paper's own layout
 
 here = fileparts(mfilename('fullpath'));
@@ -33,44 +40,71 @@ fprintf('Simulating %d controllers x 2 experiments ...\n', numel(controllers));
 for i = 1:numel(controllers)
     name  = controllers{i};
     gains = controller_gains(name);
-
+    tic;
     step_run = simulate_closed_loop(P, gains, 'step');
     sine_run = simulate_closed_loop(P, gains, 'sine');
 
-    results.(name).step   = step_run;
-    results.(name).sine   = sine_run;
-    results.(name).gains  = gains;
+    results.(name).step  = step_run;
+    results.(name).sine  = sine_run;
+    results.(name).gains = gains;
     results.(name).step_metrics = performance_metrics(step_run, 'step');
     results.(name).sine_metrics = performance_metrics(sine_run, 'sine');
     results.(name).summary = [results.(name).step_metrics.mean, results.(name).sine_metrics.mean];
-    fprintf('  %-6s done\n', name);
+
+    % the paper's own curves, through the same metrics
+    pstep = paper_curves(name, 'step');
+    psine = paper_curves(name, 'sine');
+    figs.(name).step_metrics = performance_metrics(pstep, 'step');
+    figs.(name).sine_metrics = performance_metrics(psine, 'sine');
+    figs.(name).summary = [figs.(name).step_metrics.mean, figs.(name).sine_metrics.mean];
+    results.(name).curve_rms.step = sqrt(mean((step_run.q - pstep.q).^2, 2));
+    results.(name).curve_rms.sine = sqrt(mean((sine_run.q - psine.q).^2, 2));
+    fprintf('  %-6s done (%.0f s)\n', name, toc);
 end
 
-print_report(results, paper, controllers);
+print_report(results, paper, figs, controllers);
 plot_paper_figures(results, 'results');
-save(fullfile('results', 'simulation_results.mat'), 'results', 'paper');
-fprintf('\nSaved results/summary.md, results/fig*.png and results/simulation_results.mat\n');
+save('-mat7-binary', fullfile('results', 'simulation_results.mat'), 'results', 'paper', 'figs');
+fprintf('\nSaved results/summary.md, results/*.png and results/simulation_results.mat\n');
 end
 
 % ------------------------------------------------------------------------
-function print_report(results, paper, controllers)
+function print_report(results, paper, figs, controllers)
 %PRINT_REPORT  Write the comparison tables to the screen and to results/summary.md.
 
 labels = {'Step overshoot (%)', 'Step adjustment time (s)', 'Step peak time (s)', ...
-          'Sine MSE (rad^2)', 'Sine torque (Nm)'};
+          'Sine MSE (rad^2)', 'Sine sum |tau| (Nm)'};
 fmt = {'%.1f', '%.2f', '%.2f', '%.3e', '%.4g'};
 
 fid = fopen(fullfile('results', 'summary.md'), 'w');
 out = @(varargin) both(fid, varargin{:});
 
 out('# Reproduction of the published PID and FOPID results\n\n');
-out('| Metric | Paper PID | This work | error | Paper FOPID | This work | error |\n');
-out('|---|---:|---:|---:|---:|---:|---:|\n');
-for k = 1:5
-    p1 = paper.PID(k);    m1 = results.PID.summary(k);
-    p2 = paper.FOPID(k);  m2 = results.FOPID.summary(k);
-    out(['| %s | ' fmt{k} ' | ' fmt{k} ' | %+.1f%% | ' fmt{k} ' | ' fmt{k} ' | %+.1f%% |\n'], ...
-        labels{k}, p1, m1, 100*(m1/p1 - 1), p2, m2, 100*(m2/p2 - 1));
+out('Columns: the paper''s table; the same metric recomputed from the paper''s own\n');
+out('published curves (Figs 6-19, read from the PDF''s vector graphics); this work.\n');
+out('Settling band 5 %%, all metrics on the paper''s 0.01 s logging grid.\n\n');
+for i = 1:numel(controllers)
+    c = controllers{i};
+    out('## %s\n\n| Metric | Paper table | Paper figures | This work |\n|---|---:|---:|---:|\n', c);
+    for k = 1:5
+        out(['| %s | ' fmt{k} ' | ' fmt{k} ' | ' fmt{k} ' |\n'], labels{k}, ...
+            paper.(c)(k), figs.(c).summary(k), results.(c).summary(k));
+    end
+    out('\n');
+end
+out('The sine-torque column of the paper''s Table 4 is a permutation of what its\n');
+out('Fig. 19 shows: the curves labelled PID / FOPID / FBPA-FOPID sum to\n');
+out('2.3153e4 / 3.7412e4 / 2.5675e4, i.e. the table''s FBPA / PID / FOPID values.\n');
+out('See docs/audit_report.md.\n');
+
+out('\n## Match to the published curves (rms of q_this_work - q_paper, rad)\n\n');
+out('| Controller | Experiment | J1 | J2 | J3 | J4 | J5 | J6 | mean |\n|---|---|---|---|---|---|---|---|---|\n');
+for i = 1:numel(controllers)
+    for ex = {'step', 'sine'}
+        v = results.(controllers{i}).curve_rms.(ex{1});
+        out('| %s | %s | %s | %.3f |\n', controllers{i}, ex{1}, ...
+            strjoin(arrayfun(@(x) sprintf('%.3f', x), v(:)', 'UniformOutput', false), ' | '), mean(v));
+    end
 end
 
 rows = {'Step overshoot (%)',        'step_metrics', 'overshoot',       '%.1f'
@@ -79,12 +113,18 @@ rows = {'Step overshoot (%)',        'step_metrics', 'overshoot',       '%.1f'
         'Sine MSE (rad^2)',          'sine_metrics', 'mse',             '%.2e'
         'Sine sum |tau| (Nm)',       'sine_metrics', 'torque',          '%.4g'};
 for r = 1:size(rows, 1)
-    out('\n## Per joint: %s\n\n| Controller | J1 | J2 | J3 | J4 | J5 | J6 |\n', rows{r,1});
+    out('\n## Per joint: %s\n\n| Source | J1 | J2 | J3 | J4 | J5 | J6 |\n', rows{r,1});
     out('|---|---|---|---|---|---|---|\n');
     for i = 1:numel(controllers)
-        v = results.(controllers{i}).(rows{r,2}).(rows{r,3});
-        out('| %s | %s |\n', controllers{i}, ...
-            strjoin(arrayfun(@(x) sprintf(rows{r,4}, x), v(:)', 'UniformOutput', false), ' | '));
+        for src = {'paper figures', 'this work'}
+            if strcmp(src{1}, 'this work')
+                v = results.(controllers{i}).(rows{r,2}).(rows{r,3});
+            else
+                v = figs.(controllers{i}).(rows{r,2}).(rows{r,3});
+            end
+            out('| %s, %s | %s |\n', controllers{i}, src{1}, ...
+                strjoin(arrayfun(@(x) sprintf(rows{r,4}, x), v(:)', 'UniformOutput', false), ' | '));
+        end
     end
 end
 

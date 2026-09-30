@@ -1,91 +1,97 @@
 function [M, h] = robot_dynamics(P, q, qd)
-%ROBOT_DYNAMICS  Rigid-body dynamics of the arm:  M(q) qdd + h(q, qd) = tau.
+%ROBOT_DYNAMICS  Rigid-body dynamics of the arm (Eq. 21 of the paper):
+%
+%       M(q) qdd + C(q, qd) qd + G(q) + tau_f(qd) = tau
 %
 %   [M, h] = ROBOT_DYNAMICS(P, q, qd)
 %     P      parameters from ROBOT_PARAMS
 %     q, qd  6x1 joint angles and velocities
 %     M      6x6 joint-space inertia matrix
-%     h      6x1 Coriolis, centrifugal and gravity torques
+%     h      6x1 = C(q, qd) qd + G(q) + tau_f(qd)
 %
-%   Both come from the recursive Newton-Euler algorithm:
-%     h          = RNEA(q, qd, qdd = 0)          with gravity
+%   Computed with the recursive Newton-Euler algorithm (standard DH, as in
+%   Corke's Robotics Toolbox), which gives the same M, C and G as the
+%   Lagrange formulation of the paper (Eqs. 10-20):
+%     h             = RNEA(q, qd, qdd = 0) with gravity, plus friction
 %     column j of M = RNEA(q, qd = 0, qdd = e_j) without gravity
-%   which is the standard way of extracting the inertia matrix column by
-%   column.  This is the same model as the Lagrange formulation in the paper
-%   and was verified against MATLAB's Robotics System Toolbox (~1e-14).
+%   All seven recursions are run at once as the columns of 3x7 arrays, and
+%   every cross product is written out, because Octave's cost is per
+%   statement, not per floating-point operation.
+%
+%   Verified against an independent Jacobian-based M(q) and by energy
+%   conservation (tools/verify_dynamics.m).
 %
 %   See also ROBOT_PARAMS.
 
-h = rnea(P, q, qd, zeros(6,1), P.g);
+% batch columns 1..6: qd = 0, qdd = e_j, no gravity  -> M(:, j)
+% batch column  7   : qd,     qdd = 0,  gravity      -> h
+QD  = [zeros(6, 6), qd(:)];
+QDD = [eye(6), zeros(6, 1)];
 
-M = zeros(6, 6);
-z = zeros(6, 1);
-for j = 1:6
-    e = z;  e(j) = 1;
-    M(:, j) = rnea(P, q, z, e, 0);
-end
-M = 0.5 * (M + M');          % symmetrise (removes round-off asymmetry)
-end
+w  = zeros(3, 7);                 % angular velocity of the previous link
+wd = zeros(3, 7);                 % angular acceleration
+vd = zeros(3, 7);                 % linear acceleration of the frame origin
+vd(3, 7) = P.g;                   % gravity as an upward base acceleration
 
-% ------------------------------------------------------------------------
-function tau = rnea(P, q, qd, qdd, g)
-%RNEA  Recursive Newton-Euler inverse dynamics for a serial chain.
-%   Spatial vectors are stacked as [angular; linear].  Gravity enters as a
-%   fictitious upward acceleration of the base.
+Fx = zeros(6, 7); Fy = Fx; Fz = Fx;      % force on the COM of each link
+Nx = Fx;          Ny = Fx; Nz = Fx;      % moment about the COM
+ct = cos(q);  st = sin(q);
+Rs = zeros(3, 3, 6);
 
-w = zeros(3, 1);  v = zeros(3, 1);          % velocity of the previous body
-aw = zeros(3, 1); av = [0; 0; g];           % acceleration of the previous body
-n = zeros(3, 6);  f = zeros(3, 6);          % moments and forces per body
-W = zeros(3, 6);  V = zeros(3, 6);
-
-% ---- outward recursion: velocities, accelerations, body forces ----------
+% ---- outward recursion ---------------------------------------------------
 for i = 1:6
-    R = P.R_fixed(:, :, i)';                 % parent -> body, fixed part
-    p = P.p_fixed(:, i);
-    c = cos(q(i));  s = sin(q(i));
+    R = [ct(i), -st(i)*P.ca(i),  st(i)*P.sa(i)
+         st(i),  ct(i)*P.ca(i), -ct(i)*P.sa(i)
+         0,      P.sa(i),        P.ca(i)];
+    Rs(:, :, i) = R;
+    Rt = R.';
+    qdi = QD(i, :);
 
-    w_p = rotate(R, c, s, w);                       % transform to body i
-    v_p = rotate(R, c, s, v - cross(p, w));
-    aw_p = rotate(R, c, s, aw);
-    av_p = rotate(R, c, s, av - cross(p, aw));
+    % angular velocity and acceleration of link i, in frame i
+    wd = Rt * [wd(1,:) + w(2,:).*qdi;  wd(2,:) - w(1,:).*qdi;  wd(3,:) + QDD(i,:)];
+    w  = Rt * [w(1,:);  w(2,:);  w(3,:) + qdi];
 
-    w = w_p + [0; 0; qd(i)];                        % add the joint motion
-    v = v_p;
-    aw = aw_p + [0; 0; qdd(i)] + cross(w_p, [0; 0; qd(i)]);
-    av = av_p + cross(v_p, [0; 0; qd(i)]);
+    % linear acceleration of the frame origin: wd x p + w x (w x p) + Rt vd
+    p = P.pstar(:, i);
+    c1 = w(2,:)*p(3) - w(3,:)*p(2);  c2 = w(3,:)*p(1) - w(1,:)*p(3);  c3 = w(1,:)*p(2) - w(2,:)*p(1);
+    vd = Rt * vd + [wd(2,:)*p(3) - wd(3,:)*p(2) + w(2,:).*c3 - w(3,:).*c2
+                    wd(3,:)*p(1) - wd(1,:)*p(3) + w(3,:).*c1 - w(1,:).*c3
+                    wd(1,:)*p(2) - wd(2,:)*p(1) + w(1,:).*c2 - w(2,:).*c1];
 
-    Iv = P.I(:, :, i) * [w; v];
-    Ia = P.I(:, :, i) * [aw; av];
-    n(:, i) = Ia(1:3) + cross(w, Iv(1:3)) + cross(v, Iv(4:6));
-    f(:, i) = Ia(4:6) + cross(w, Iv(4:6));
-    W(:, i) = w;  V(:, i) = v;
+    % acceleration of the COM, then Newton and Euler for the link
+    r = P.rc(:, i);
+    c1 = w(2,:)*r(3) - w(3,:)*r(2);  c2 = w(3,:)*r(1) - w(1,:)*r(3);  c3 = w(1,:)*r(2) - w(2,:)*r(1);
+    m = P.m(i);
+    Fx(i,:) = m * (vd(1,:) + wd(2,:)*r(3) - wd(3,:)*r(2) + w(2,:).*c3 - w(3,:).*c2);
+    Fy(i,:) = m * (vd(2,:) + wd(3,:)*r(1) - wd(1,:)*r(3) + w(3,:).*c1 - w(1,:).*c3);
+    Fz(i,:) = m * (vd(3,:) + wd(1,:)*r(2) - wd(2,:)*r(1) + w(1,:).*c2 - w(2,:).*c1);
+    I = P.Idiag(i, :);
+    Nx(i,:) = I(1)*wd(1,:) + (I(3) - I(2)) * w(2,:).*w(3,:);
+    Ny(i,:) = I(2)*wd(2,:) + (I(1) - I(3)) * w(3,:).*w(1,:);
+    Nz(i,:) = I(3)*wd(3,:) + (I(2) - I(1)) * w(1,:).*w(2,:);
 end
 
-% ---- inward recursion: joint torques ------------------------------------
-tau = zeros(6, 1);
-nn = n(:, 6);  ff = f(:, 6);
+% ---- inward recursion ------------------------------------------------------
+tau = zeros(6, 7);
+f = zeros(3, 7);  n = zeros(3, 7);
 for i = 6:-1:1
-    tau(i) = nn(3);                                  % torque about the joint axis
-    if i > 1
-        R = P.R_fixed(:, :, i);
-        p = P.p_fixed(:, i);
-        c = cos(q(i));  s = sin(q(i));
-        nn_p = R * rotz(c, s, nn);                   % transform back to the parent
-        ff_p = R * rotz(c, s, ff);
-        nn = n(:, i-1) + nn_p + cross(p, ff_p);
-        ff = f(:, i-1) + ff_p;
+    if i < 6
+        R = Rs(:, :, i+1);
+        f = R * f;                 % force and moment from link i+1, in frame i
+        n = R * n;
     end
-end
+    p  = P.pstar(:, i);
+    pr = p + P.rc(:, i);
+    F  = [Fx(i,:); Fy(i,:); Fz(i,:)];
+    n = n + [Nx(i,:); Ny(i,:); Nz(i,:)] ...
+          + [p(2)*f(3,:) - p(3)*f(2,:);   p(3)*f(1,:) - p(1)*f(3,:);   p(1)*f(2,:) - p(2)*f(1,:)] ...
+          + [pr(2)*F(3,:) - pr(3)*F(2,:); pr(3)*F(1,:) - pr(1)*F(3,:); pr(1)*F(2,:) - pr(2)*F(1,:)];
+    f = f + F;
+    z = Rs(3, :, i);               % joint axis z_{i-1} expressed in frame i
+    tau(i, :) = z * n;
 end
 
-% ------------------------------------------------------------------------
-function y = rotate(R, c, s, x)
-%ROTATE  Parent -> body:  Rz(q)' * (R * x).
-x = R * x;
-y = [ c*x(1) + s*x(2); -s*x(1) + c*x(2); x(3)];
-end
-
-function y = rotz(c, s, x)
-%ROTZ  Body -> parent (rotation part only):  Rz(q) * x.
-y = [c*x(1) - s*x(2); s*x(1) + c*x(2); x(3)];
+M = tau(:, 1:6);
+M = 0.5 * (M + M.');
+h = tau(:, 7) + P.fc .* sign(qd(:)) + P.b .* qd(:);
 end

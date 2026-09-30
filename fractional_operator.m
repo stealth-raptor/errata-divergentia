@@ -5,7 +5,9 @@ function F = fractional_operator(order, dt)
 %   filter that approximates s^order(i) at sample time dt.
 %
 %   Method: Oustaloup's recursive approximation over [1e-3, 1e3] rad/s with
-%   N = 5, i.e. 11 poles and zeros,
+%   N = 5, i.e. 11 poles and zeros.  The paper (Sect. 2.1-2.2) defines the
+%   fractional operators but not how they were realised in Simulink; these
+%   are the defaults of FOMCON, the usual FOPID toolbox for Simulink,
 %
 %       s^a  ~=  K + sum_k  r_k / (s + p_k),
 %
