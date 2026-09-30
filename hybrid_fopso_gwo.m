@@ -73,7 +73,13 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %     SeedJitter   0.05        standard deviation of that jitter
 %     UseParallel  false       evaluate the swarm with PARFOR
 %     Checkpoint   ''          .mat file saved after every iteration
-%     Resume       false       continue from Checkpoint if it exists
+%     Resume       false       continue from Checkpoint if it exists and was
+%                              written with the same PopSize, MaxIter and
+%                              CheckpointTag; otherwise it is ignored with a
+%                              warning (and overwritten)
+%     CheckpointTag []         any value identifying the cost function
+%                              settings, stored in and compared with the
+%                              checkpoint
 %     RandomSeed   []          seed for RNG, [] leaves the generator alone
 %     Verbose      true        print progress
 %
@@ -86,13 +92,21 @@ if N < 3
     error('hybrid_fopso_gwo:pop', 'PopSize must be at least 3 (alpha, beta, delta)');
 end
 
+st = [];
 if ~isempty(opts.Checkpoint) && opts.Resume && exist(opts.Checkpoint, 'file')
     S = load(opts.Checkpoint, 'state');
     st = S.state;
-    if st.nvar ~= nvar || st.N ~= N || st.MaxIter ~= opts.MaxIter
-        error('hybrid_fopso_gwo:resume', ...
-              'checkpoint %s does not match the current problem size', opts.Checkpoint);
+    if ~isfield(st, 'tag') || ~isequal(st.tag, opts.CheckpointTag) ...
+            || st.nvar ~= nvar || st.N ~= N || st.MaxIter ~= opts.MaxIter
+        warning('hybrid_fopso_gwo:resume', ...
+                ['checkpoint %s is from a run with different settings ' ...
+                 '(%d particles x %d iterations); ignoring it and starting afresh'], ...
+                opts.Checkpoint, st.N, st.MaxIter);
+        st = [];
     end
+end
+
+if ~isempty(st)
     rng(st.rng);
     if opts.Verbose
         fprintf('Resuming from %s at iteration %d/%d, best cost %.6g\n', ...
@@ -101,6 +115,7 @@ if ~isempty(opts.Checkpoint) && opts.Resume && exist(opts.Checkpoint, 'file')
 else
     if ~isempty(opts.RandomSeed), rng(opts.RandomSeed); end
     st = initialise(cost, nvar, opts);
+    st.tag = opts.CheckpointTag;
     if ~isempty(opts.Checkpoint)
         st.rng = rng;
         state = st; %#ok<NASGU>
@@ -266,7 +281,7 @@ d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1, 'c2', 1, 'c3', 1, 'gwo_power'
            'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0.5, ...
            'vmax', 0.2, 'Seeds', zeros(0, nvar), 'SeedFraction', 0.3, ...
            'SeedJitter', 0.05, 'UseParallel', false, 'Checkpoint', '', ...
-           'Resume', false, 'RandomSeed', [], 'Verbose', true);
+           'Resume', false, 'CheckpointTag', [], 'RandomSeed', [], 'Verbose', true);
 f = fieldnames(d);
 for i = 1:numel(f)
     if ~isfield(opts, f{i}), opts.(f{i}) = d.(f{i}); end

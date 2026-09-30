@@ -28,7 +28,8 @@ function tuned = tune_fopid_hybrid(opts)
 %     * opts.UseParallel = true evaluates the swarm with PARFOR (Parallel
 %       Computing Toolbox; on by default when the toolbox is installed);
 %     * a checkpoint is written after every iteration, and an interrupted
-%       run resumes from it when called again with the same options
+%       run resumes from it when called again with the same options (a
+%       checkpoint from a run with other options is ignored with a warning)
 %       (delete results/fopso_gwo_checkpoint.mat to start afresh; it is
 %       removed automatically once a run completes);
 %     * unstable candidates are aborted as soon as an error passes 5 rad;
@@ -84,6 +85,8 @@ end
 
 opt_opts = rmfield(opts, {'Fitness', 'Weights', 'Regret', 'Baseline', 'Bounds', 'OutFile'});
 opt_opts.Seeds = min(max(z_seed, 0), 1);
+% a checkpoint is only resumed if it was written for the same cost function
+opt_opts.CheckpointTag = {fit.weights, fit.regret, B.lo, B.hi, ref};
 
 fprintf('FO-PSO/GWO: %d particles x %d iterations, 30 parameters, fitness ''%s''\n', ...
         opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness);
