@@ -1,8 +1,12 @@
 """Write controller_gains.m from identification results (identify_gains.py JSON).
 
-Usage: python3 tools/write_controller_gains.py fit_PID.json fit_FOPID.json
+Usage:
+  python3 tools/write_controller_gains.py \\
+      --shared PID_shared.json FOPID_shared.json \\
+      --step   PID_step.json   FOPID_step.json \\
+      --sine   PID_sine.json   FOPID_sine.json
 """
-import json, os, sys
+import argparse, json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -11,14 +15,17 @@ def vec(v):
     return '[' + ' '.join('%.10g' % x for x in v) + "]'"
 
 
-def block(name, R):
+def rms_line(R, kind):
+    v = R['rms_' + kind]
+    return f"        %   {kind} " + ' '.join('%.3f' % x for x in v) + '   (mean %.3f)' % (sum(v) / len(v))
+
+
+def block(key, R, kinds):
     g = R['gains']
-    rs = ' '.join('%.3f' % v for v in R['rms_step'])
-    rn = ' '.join('%.3f' % v for v in R['rms_sine'])
-    return f"""    case '{name}'
+    lines = '\n'.join(rms_line(R, k) for k in kinds)
+    return f"""    case '{key}'
         % rms vs the published curves, joints 1-6 [rad]:
-        %   step {rs}
-        %   sine {rn}
+{lines}
         gains.Kp     = {vec(g['Kp'])};
         gains.Ki     = {vec(g['Ki'])};
         gains.Kd     = {vec(g['Kd'])};
@@ -28,31 +35,48 @@ def block(name, R):
 
 
 if __name__ == '__main__':
-    pid, fopid = (json.load(open(f)) for f in sys.argv[1:3])
-    meta = pid['meta']
-    src = f"""function gains = controller_gains(controller)
+    ap = argparse.ArgumentParser()
+    for k in ('shared', 'step', 'sine'):
+        ap.add_argument('--' + k, nargs=2, required=True, metavar=('PID_JSON', 'FOPID_JSON'))
+    a = ap.parse_args()
+    R = {k: [json.load(open(f)) for f in getattr(a, k)] for k in ('shared', 'step', 'sine')}
+    meta = R['shared'][0]['meta']
+    blocks = ''
+    for c, name in enumerate(('PID', 'FOPID')):
+        blocks += block(f'{name}/shared', R['shared'][c], ('step', 'sine'))
+        blocks += block(f'{name}/step', R['step'][c], ('step',))
+        blocks += block(f'{name}/sine', R['sine'][c], ('sine',))
+    src = f"""function gains = controller_gains(controller, experiment)
 %CONTROLLER_GAINS  Gains of the six joint controllers, identified from the paper.
 %
-%   gains = CONTROLLER_GAINS('PID')    classical PID  (lambda = mu = 1)
-%   gains = CONTROLLER_GAINS('FOPID')  fractional-order PID
+%   gains = CONTROLLER_GAINS(controller)              one gain set for both experiments
+%   gains = CONTROLLER_GAINS(controller, experiment)  gain set for one experiment
+%     controller  'PID' (lambda = mu = 1) or 'FOPID'
+%     experiment  'step', 'sine', or 'shared' (the default)
 %
 %   Each field is 6x1, one entry per joint.  The paper publishes no gains.
-%   These were identified from the paper's own published curves: all six
-%   joint trajectories of the step experiment (Figs 6-11) and of the sine
-%   experiment (Figs 13-18), read from the PDF's vector graphics, were matched
-%   by least squares in the fully coupled closed loop, one gain set per
-%   controller for both experiments (tools/identify_gains.py, plant:
-%   {meta['lengths']} lengths, COM {meta['com']}, g = {meta['g']:g}).
+%   All of them were identified from the paper's own published curves, read
+%   from the PDF's vector graphics: the six joint trajectories of the step
+%   experiment (Figs 6-11) and/or of the sine experiment (Figs 13-18) were
+%   matched by least squares in the fully coupled closed loop
+%   (tools/identify_gains.py; plant: {meta['lengths']} lengths, COM {meta['com']}, g = {meta['g']:g}).
 %
-%   The joint-1 step and sine curves of the paper cannot both be matched by
-%   any gain set (docs/audit_report.md, Sect. 4); these gains are the best
-%   compromise over all 12 curves of each controller.
+%   'shared'      one gain set fitted to both experiments at once.  This is
+%                 what the paper implies (it describes one PID and one FOPID
+%                 controller), but its joint-1 step and sine curves cannot
+%                 both be matched by any gain set (docs/audit_report.md, 4).
+%   'step','sine' a gain set fitted to that experiment's curves only.  The
+%                 paper does not say whether its two experiments used the
+%                 same gains; separate sets match each experiment more
+%                 closely (docs/audit_report.md, 4.3).  MAIN uses these by
+%                 default.
 %
-%   See also FOPID_CONTROLLER, ROBOT_PARAMS.
+%   See also FOPID_CONTROLLER, ROBOT_PARAMS, MAIN.
 
-switch upper(controller)
-{block('PID', pid)}{block('FOPID', fopid)}    otherwise
-        error('controller_gains:name', 'unknown controller ''%s''', controller);
+if nargin < 2, experiment = 'shared'; end
+switch [upper(controller) '/' lower(experiment)]
+{blocks}    otherwise
+        error('controller_gains:name', 'unknown controller/experiment ''%s/%s''', controller, experiment);
 end
 end
 """

@@ -2,8 +2,9 @@
 
 Parses the gains from controller_gains.m, simulates both controllers through
 both experiments with the Python twin (tools/ur_twin.py) and stores q on the
-0.01 s grid.  Columns: run (1..4: PID step, PID sine, FOPID step, FOPID sine),
-t, q1..q6.
+0.01 s grid.  Columns: run, t, q1..q6, with runs
+  1..4  PID step, PID sine, FOPID step, FOPID sine  with the per-experiment gains
+  5..8  the same with the shared gains.
 """
 import os, re, sys
 import numpy as np
@@ -17,7 +18,7 @@ def read_gains(path=os.path.join(HERE, '..', 'controller_gains.m')):
     src = open(path).read()
     out = {}
     for block in re.split(r"\n\s*case\s+", src)[1:]:
-        name = re.match(r"'(\w+)'", block).group(1)
+        name = re.match(r"'([\w/]+)'", block).group(1)
         g = {}
         for key in ('Kp', 'Ki', 'Kd', 'lambda', 'mu'):
             m = re.search(r"gains\.%s\s*=\s*\[([^\]]*)\]" % key, block)
@@ -31,11 +32,13 @@ if __name__ == '__main__':
     plant = T.make_plant()          # must match robot_params() defaults
     rows = []
     k = 0
-    for c in ('PID', 'FOPID'):
-        for kind in ('step', 'sine'):
-            k += 1
-            t, r, Q, U = T.simulate(plant, gains[c], kind)
-            rows.append(np.column_stack([np.full(t.size, k), t, Q.T]))
+    for mode in ('separate', 'shared'):
+        for c in ('PID', 'FOPID'):
+            for kind in ('step', 'sine'):
+                k += 1
+                g = gains[f'{c}/{kind if mode == "separate" else "shared"}']
+                t, r, Q, U = T.simulate(plant, g, kind)
+                rows.append(np.column_stack([np.full(t.size, k), t, Q.T]))
     np.savetxt(os.path.join(HERE, '..', 'data', 'twin_reference.csv'), np.vstack(rows), delimiter=',',
                header='run,t,q1,q2,q3,q4,q5,q6', comments='', fmt='%.15g')
     print('wrote data/twin_reference.csv')

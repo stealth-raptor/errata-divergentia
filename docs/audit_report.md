@@ -15,13 +15,18 @@ Branch: `audit`. Everything below can be re-run from the repository (commands in
    graphics, so every curve was read back exactly (0.001 rad rms accuracy) instead of digitised
    from a raster (Sect. 1). The gains were then **identified from the curves themselves**, for all
    six joints together in the fully coupled arm.
-3. **Result of the new identification:** the mean rms difference to the published curves fell from
-   0.30 / 0.19 rad (PID step / sine) and 0.17 / 0.10 rad (FOPID) to **0.108 / 0.099 rad (PID)** and
-   **0.070 / 0.062 rad (FOPID)**. Joints 2, 4 and 6 now follow the published curves to 0.02–0.05 rad
-   (FOPID). The distinctive features of the coupled arm are reproduced: joint 4's negative dip after
-   the step, joint 3's early jump, and joint 5's fast spike followed by a slow swing. Tables: FOPID overshoot 35.9 % (table 31.2, figures 34.4) and peak time 1.32 s
-   (table 1.33); sine MSE 1.05e-2 (table 0.88e-2). Full tables in `results/summary.md` and the
-   README.
+3. **Result of the new identification.** Mean rms difference to the published curves
+   (PID step / sine; FOPID step / sine):
+   * previous gains: 0.30 / 0.19; 0.17 / 0.10 rad;
+   * one gain set per controller for both experiments (`main('shared')`), as the paper implies:
+     **0.108 / 0.099; 0.070 / 0.062 rad**;
+   * a separate gain set for each experiment (the default `main`; the paper does not say whether
+     its experiments shared gains): **0.092 / 0.080; 0.058 / 0.051 rad** (4.3).
+
+   Joints 2, 4 and 6 follow the published curves to 0.02–0.05 rad (FOPID). The distinctive
+   features of the coupled arm are reproduced: joint 4's negative dip after the step, joint 3's
+   early jump, and joint 5's fast spike followed by a slow swing. Full tables are in
+   `results/summary.md` (separate gains), `results/shared_gains/summary.md` and the README.
 4. **Why an exact match is not possible for every panel: the paper contradicts itself.**
    The paper's joint-1 sine curves cannot come from the same plant and controllers as its
    joint-1 step curves. This is shown exactly, without any optimiser, from the angular-momentum
@@ -214,16 +219,16 @@ difference to the published curves, per joint (rad):
 
 | Fit | Scored on | J1 | J2 | J3 | J4 | J5 | J6 | mean |
 |---|---|---|---|---|---|---|---|---|
-| PID, one gain set for both experiments (**used**) | step | 0.157 | 0.050 | 0.076 | 0.104 | 0.187 | 0.076 | 0.108 |
+| PID, one gain set for both experiments | step | 0.157 | 0.050 | 0.076 | 0.104 | 0.187 | 0.076 | 0.108 |
 | | sine | 0.143 | 0.050 | 0.118 | 0.046 | 0.218 | 0.021 | 0.099 |
-| PID, fitted to the step curves only | step | 0.157 | 0.046 | 0.072 | 0.085 | 0.167 | 0.078 | 0.101 |
-| PID, fitted to the sine curves only | sine | 0.124 | 0.063 | 0.105 | 0.024 | 0.143 | 0.021 | 0.080 |
-| FOPID, one gain set for both experiments (**used**) | step | 0.095 | 0.034 | 0.041 | 0.051 | 0.141 | 0.055 | 0.070 |
+| PID, fitted to the step curves only (4.3) | step | 0.168 | 0.083 | 0.049 | 0.046 | 0.142 | 0.065 | 0.092 |
+| PID, fitted to the sine curves only (4.3) | sine | 0.124 | 0.064 | 0.105 | 0.025 | 0.143 | 0.021 | 0.080 |
+| FOPID, one gain set for both experiments | step | 0.095 | 0.034 | 0.041 | 0.051 | 0.141 | 0.055 | 0.070 |
 | | sine | 0.062 | 0.032 | 0.076 | 0.017 | 0.157 | 0.030 | 0.062 |
 
 * Joints 2, 4 and 6 are reproduced closely in both experiments. The residual concentrates on
   joint 1 (proven inconsistent, 4.1), joint 5 and the joint-3 sine.
-* Fitting each experiment separately helps little (PID: step 0.108 → 0.101, sine 0.099 → 0.080).
+* Fitting each experiment separately helps only moderately (PID: step 0.108 → 0.092, sine 0.099 → 0.080; 4.3).
   So for PID even a single experiment cannot be matched exactly with the paper's plant and
   controller. What remains depends on unpublished simulation details (solver, fractional-operator
   block, derivative realisation) that the curves cannot pin down.
@@ -234,7 +239,7 @@ difference to the published curves, per joint (rad):
 * FOPID fits better than PID on every joint and experiment except the joint-6 sine: the two
   orders per joint add freedom.
 * **The gains are not unique.** FOPID gain sets that differ by orders of magnitude on some joints
-  give nearly the same curves (0.0805 vs 0.0785 rad total; `data/identification/FOPID_step+sine*.json`). Two orders
+  give nearly the same curves (0.0805 vs 0.0785 rad total; `data/identification/FOPID_shared*.json`). Two orders
   sit at the search bounds (λ3 = 1.95, λ6 = 0.05). As before, the gains show that the curves are
   attainable with this model; they are not claimed to be the authors' gains.
 
@@ -247,6 +252,52 @@ Table 2 is kept as printed.
 during the first second. The paper's curves are flat to < 1e-4 rad before the step, so gravity
 was absent or exactly compensated in the paper's simulation, and g = 0 here.
 
+
+### 4.3 Separate gains for the step and sine experiments
+
+The paper describes one PID and one FOPID controller, but it never says that both experiments
+used the same gains. So each experiment was also fitted with its own gain set: same
+identification, residuals of the other experiment switched off (`--weights 1,0` / `0,1`), two
+starts per fit, best kept. `main` now uses these per-experiment sets by default, and
+`main('shared')` keeps one set per controller (results in `results/shared_gains/`).
+
+RMS difference to the published curves, per joint (rad):
+
+| Controller | Experiment | Gains | J1 | J2 | J3 | J4 | J5 | J6 | mean |
+|---|---|---|---|---|---|---|---|---|---|
+| PID | step | shared | 0.157 | 0.050 | 0.076 | 0.104 | 0.187 | 0.076 | 0.108 |
+| | | **separate** | 0.168 | 0.083 | 0.049 | 0.046 | 0.142 | 0.065 | **0.092** |
+| PID | sine | shared | 0.143 | 0.050 | 0.118 | 0.046 | 0.218 | 0.021 | 0.099 |
+| | | **separate** | 0.124 | 0.064 | 0.105 | 0.025 | 0.143 | 0.021 | **0.080** |
+| FOPID | step | shared | 0.095 | 0.034 | 0.041 | 0.051 | 0.141 | 0.055 | 0.070 |
+| | | **separate** | 0.118 | 0.038 | 0.034 | 0.024 | 0.077 | 0.054 | **0.058** |
+| FOPID | sine | shared | 0.062 | 0.032 | 0.076 | 0.017 | 0.157 | 0.030 | 0.062 |
+| | | **separate** | 0.050 | 0.046 | 0.069 | 0.016 | 0.108 | 0.019 | **0.051** |
+
+* Separate gains lower all four means by 15–19 %. Most of the gain is on joints 3–5, e.g. the
+  FOPID step for joint 5 (0.141 → 0.077) and joint 4 (0.051 → 0.024).
+* **Joint 1's step does not improve** (PID 0.157 → 0.168, FOPID 0.095 → 0.118). The objective is
+  the total rms, and it gives up a little on joint 1 to gain more on the others. The two PID
+  step-only fits reached the same optimum from different starts, one of them seeded with the
+  joint-1 gains of the momentum test, so this is the limit, not a search failure. In the coupled
+  arm, joint 1's spin-up depends on joints 2/3 folding the arm exactly as in the paper.
+* The joint-1 sine improves for FOPID (0.062 → 0.050). The PID value, 0.124, is the floor that 4.1
+  predicts: no PID explains more than ~58 % of that curve.
+* **Numerical conditioning.** Left unconstrained, the sine-only FOPID fit (from both starts)
+  settled on joint-5 orders λ ≈ 1.9, μ ≈ 1.75. That drives the coupled loop into a chattering
+  regime where a 1e-12 relative change of any gain moves the response by ~2e-3 rad, so the result
+  would differ between Octave and MATLAB, or between versions. `tools/check_twin.m` caught it
+  (Octave vs Python: 4e-3 rad instead of ~1e-14). The identification now has a `--robust` mode:
+  every candidate is simulated again with gains × (1 + 1e-10), and loops whose response moves by
+  more than a tolerance are penalised. The FOPID sine set in use was identified with a tolerance
+  of 1e-8 rad. It fits as well as the ill-conditioned optimum (0.0602 vs 0.0603 rad total) and,
+  like the other five sets, moves by only ~1e-9 rad for gain changes of 1e-10 to 1e-14. Each
+  set's measured sensitivity is stored in its JSON; the rejected set is kept as
+  `data/identification/FOPID_sine_unconstrained.json`.
+* So separate gains help, by about a sixth, but they are not the missing ingredient. The
+  joint-1 inconsistency (4.1) and the unpublished simulation details remain. The paper does not
+  say whether its authors used separate gains, and an improvement this modest leaves both
+  readings plausible.
 
 ---
 
@@ -262,7 +313,7 @@ was absent or exactly compensated in the paper's simulation, and g = 0 here.
 | Gravity | in the model (G(q)) | g = 0 | g = 0 (the published responses are exactly flat before the step); switchable |
 | Controller | Eq. 9, six independent FOPIDs, λ, μ > 0 | same | same |
 | Fractional operator | not specified | Oustaloup N = 5, [1e-3, 1e3] | same (FOMCON defaults) |
-| Gains | **not published** | fitted to 5 averaged metrics | **identified from the 24 published curves** of each controller (step + sine, one gain set) |
+| Gains | **not published** | fitted to 5 averaged metrics | **identified from the published curves**: one set per experiment (default, 4.3), or one set for both experiments (`main('shared')`) |
 | Step input | 1 rad at t = 1 s (Figs 6–11) | same | same |
 | Sine input | sin(1.5 t) (Figs 13–18) | same | same |
 | Logging / metric grid | 0.01 s (3.1) | 1 ms | **0.01 s** |
@@ -299,14 +350,15 @@ reasonable request"):
 ## 7. How to re-run
 
 ```
-octave --eval main                         # the reproduction: tables, figures, summary.md
+octave --eval main                         # the reproduction (per-experiment gains): results/
+octave --eval "main('shared')"             # one gain set per controller: results/shared_gains/
 octave --eval "addpath tools; verify_dynamics"
 
 python3 tools/extract_paper_curves.py paper.pdf   # re-extract the published curves
 python3 tools/joint1_momentum_test.py             # Sect. 4.1
 python3 tools/torque_consistency.py               # Sect. 3.4
-python3 tools/identify_gains.py PID   --out fit_PID.json    # gain identification
-python3 tools/identify_gains.py FOPID --out fit_FOPID.json
+python3 tools/identify_gains.py PID   --out fit_PID.json                  # gain identification, both experiments
+python3 tools/identify_gains.py FOPID --weights 1,0 --out fit_step.json  # step curves only (0,1: sine only)
 ```
 
 The Python tools need numpy, scipy, numba, cma and pymupdf. Octave needs no packages.

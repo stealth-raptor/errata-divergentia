@@ -1,7 +1,8 @@
-function results = main()
+function results = main(mode)
 %MAIN  Reproduce the PID and FOPID results of the FOPID trajectory-tracking paper.
 %
-%   results = MAIN()
+%   results = MAIN()           gains fitted to each experiment separately
+%   results = MAIN('shared')   one gain set per controller for both experiments
 %
 %   Runs both controllers through both experiments of the paper,
 %     step response : 1 rad on every joint at t = 1 s
@@ -13,7 +14,14 @@ function results = main()
 %        figures and tables of the paper do not fully agree with each other;
 %     3. the published curves themselves, joint by joint (rms difference).
 %   Saves results/summary.md, the paper's figure set (Figs 6-19), two
-%   comparison figures and results/simulation_results.mat.
+%   comparison figures and results/simulation_results.mat; with 'shared',
+%   the same under results/shared_gains/.
+%
+%   Gain sets (see CONTROLLER_GAINS): the paper does not say whether its
+%   step and sine experiments used the same gains.  By default each
+%   experiment uses the gains identified from its own published curves,
+%   which matches the figures most closely; 'shared' uses one gain set per
+%   controller identified from both experiments together.
 %
 %   Runtime in Octave: a few minutes (four 5 s simulations at 1 ms).
 %
@@ -25,9 +33,15 @@ function results = main()
 %     PAPER_CURVES         -> the paper's own published curves
 %     PLOT_PAPER_FIGURES   -> the figures, in the paper's own layout
 
+if nargin < 1, mode = 'separate'; end
+if ~any(strcmp(mode, {'separate', 'shared'}))
+    error('main:mode', 'mode must be ''separate'' or ''shared''');
+end
 here = fileparts(mfilename('fullpath'));
 cd(here);
-if ~exist('results', 'dir'), mkdir('results'); end
+outdir = 'results';
+if strcmp(mode, 'shared'), outdir = fullfile('results', 'shared_gains'); end
+if ~exist(outdir, 'dir'), mkdir(outdir); end
 
 P = robot_params();
 controllers = {'PID', 'FOPID'};
@@ -36,13 +50,19 @@ controllers = {'PID', 'FOPID'};
 paper.PID   = [54.6 2.44 1.39 2.27e-2 3.7422e4];
 paper.FOPID = [31.2 1.89 1.33 0.88e-2 2.5686e4];
 
-fprintf('Simulating %d controllers x 2 experiments ...\n', numel(controllers));
+fprintf('Simulating %d controllers x 2 experiments (%s gains) ...\n', numel(controllers), mode);
 for i = 1:numel(controllers)
-    name  = controllers{i};
-    gains = controller_gains(name);
+    name = controllers{i};
+    if strcmp(mode, 'separate')
+        gains.step = controller_gains(name, 'step');
+        gains.sine = controller_gains(name, 'sine');
+    else
+        gains.step = controller_gains(name);
+        gains.sine = gains.step;
+    end
     tic;
-    step_run = simulate_closed_loop(P, gains, 'step');
-    sine_run = simulate_closed_loop(P, gains, 'sine');
+    step_run = simulate_closed_loop(P, gains.step, 'step');
+    sine_run = simulate_closed_loop(P, gains.sine, 'sine');
 
     results.(name).step  = step_run;
     results.(name).sine  = sine_run;
@@ -62,27 +82,37 @@ for i = 1:numel(controllers)
     fprintf('  %-6s done (%.0f s)\n', name, toc);
 end
 
-print_report(results, paper, figs, controllers);
-plot_paper_figures(results, 'results');
-save('-mat7-binary', fullfile('results', 'simulation_results.mat'), 'results', 'paper', 'figs');
-fprintf('\nSaved results/summary.md, results/*.png and results/simulation_results.mat\n');
+print_report(results, paper, figs, controllers, outdir, mode);
+plot_paper_figures(results, outdir);
+matfile = fullfile(outdir, 'simulation_results.mat');
+if exist('OCTAVE_VERSION', 'builtin')
+    save('-mat7-binary', matfile, 'results', 'paper', 'figs');
+else
+    save(matfile, 'results', 'paper', 'figs', '-v7');
+end
+fprintf('\nSaved %s/summary.md, %s/*.png and %s\n', outdir, outdir, matfile);
 end
 
 % ------------------------------------------------------------------------
-function print_report(results, paper, figs, controllers)
-%PRINT_REPORT  Write the comparison tables to the screen and to results/summary.md.
+function print_report(results, paper, figs, controllers, outdir, mode)
+%PRINT_REPORT  Write the comparison tables to the screen and to <outdir>/summary.md.
 
 labels = {'Step overshoot (%)', 'Step adjustment time (s)', 'Step peak time (s)', ...
           'Sine MSE (rad^2)', 'Sine sum |tau| (Nm)'};
 fmt = {'%.1f', '%.2f', '%.2f', '%.3e', '%.4g'};
 
-fid = fopen(fullfile('results', 'summary.md'), 'w');
+fid = fopen(fullfile(outdir, 'summary.md'), 'w');
 out = @(varargin) both(fid, varargin{:});
 
 out('# Reproduction of the published PID and FOPID results\n\n');
 out('Columns: the paper''s table; the same metric recomputed from the paper''s own\n');
 out('published curves (Figs 6-19, read from the PDF''s vector graphics); this work.\n');
-out('Settling band 5 %%, all metrics on the paper''s 0.01 s logging grid.\n\n');
+out('Settling band 5 %%, all metrics on the paper''s 0.01 s logging grid.\n');
+if strcmp(mode, 'separate')
+    out('Gains: identified separately for each experiment (controller_gains(name, experiment)).\n\n');
+else
+    out('Gains: one set per controller for both experiments (controller_gains(name)).\n\n');
+end
 for i = 1:numel(controllers)
     c = controllers{i};
     out('## %s\n\n| Metric | Paper table | Paper figures | This work |\n|---|---:|---:|---:|\n', c);
@@ -128,12 +158,21 @@ for r = 1:size(rows, 1)
     end
 end
 
+sets = {'step', 'sine'};
+if strcmp(mode, 'shared'), sets = {'step'}; end
 for i = 1:numel(controllers)
-    g = results.(controllers{i}).gains;
-    out('\n## %s gains\n\n| | J1 | J2 | J3 | J4 | J5 | J6 |\n|---|---|---|---|---|---|---|\n', controllers{i});
-    for f = {'Kp', 'Ki', 'Kd', 'lambda', 'mu'}
-        out('| %s | %s |\n', f{1}, ...
-            strjoin(arrayfun(@(x) sprintf('%.4g', x), g.(f{1})(:)', 'UniformOutput', false), ' | '));
+    for e = sets
+        g = results.(controllers{i}).gains.(e{1});
+        if strcmp(mode, 'shared')
+            out('\n## %s gains (both experiments)\n\n', controllers{i});
+        else
+            out('\n## %s gains, %s experiment\n\n', controllers{i}, e{1});
+        end
+        out('| | J1 | J2 | J3 | J4 | J5 | J6 |\n|---|---|---|---|---|---|---|\n');
+        for f = {'Kp', 'Ki', 'Kd', 'lambda', 'mu'}
+            out('| %s | %s |\n', f{1}, ...
+                strjoin(arrayfun(@(x) sprintf('%.4g', x), g.(f{1})(:)', 'UniformOutput', false), ' | '));
+        end
     end
 end
 fclose(fid);

@@ -31,8 +31,15 @@ LOG_BOUNDS = {'Kp': (-3, 7), 'Ki': (-4, 7), 'Kd': (-4, 5)}
 ORDER_BOUNDS = (0.05, 1.95)
 
 
+SENSITIVITY_EPS = 1e-10     # relative gain perturbation used to test conditioning
+SENSITIVITY_TOL = 1e-6      # max response change [rad] a well-conditioned loop may show
+
+
 class Problem:
-    def __init__(self, controller, plant, weights=(1.0, 1.0), t_from=(0.0, 0.0)):
+    def __init__(self, controller, plant, weights=(1.0, 1.0), t_from=(0.0, 0.0), robust=False,
+                 robust_tol=SENSITIVITY_TOL):
+        self.robust = robust
+        self.robust_tol = robust_tol
         self.controller = controller
         self.plant = plant
         self.data = {k: D.positions(k, controller) for k in ('step', 'sine')}
@@ -62,14 +69,31 @@ class Problem:
         g = self.gains(x)
         out = []
         for kind in ('step', 'sine'):
+            if self.w[kind] == 0:          # experiment not part of this fit: not simulated
+                continue
             try:
                 _, _, Q, _ = T.simulate(self.plant, g, kind)
             except Exception:
                 Q = np.full((6, D.TG.size), np.nan)
             res = (Q - self.data[kind])[:, self.mask[kind]] * self.w[kind]
             res = np.where(np.isfinite(res), res, 10.0)
-            out.append(np.clip(res, -10, 10).ravel())
+            res = np.clip(res, -10, 10)
+            if self.robust and np.all(np.isfinite(Q)) and self.sensitivity(g, kind, Q) > self.robust_tol:
+                res = res + 0.05 * np.sign(res + 1e-12)     # ill-conditioned: +0.05 rad everywhere
+            out.append(res.ravel())
         return np.concatenate(out)
+
+    def sensitivity(self, g, kind, Q=None):
+        """Max response change for a relative gain change of SENSITIVITY_EPS.  A
+        well-conditioned closed loop changes by ~1e-9 rad; one that chatters in
+        a round-off-sensitive regime by ~1e-3 rad, and its simulation would not
+        be reproducible across platforms."""
+        if Q is None:
+            _, _, Q, _ = T.simulate(self.plant, g, kind)
+        g2 = {k: np.asarray(v) * (1 + SENSITIVITY_EPS) for k, v in g.items()}
+        _, _, Q2, _ = T.simulate(self.plant, g2, kind)
+        d = np.abs(Q2 - Q)
+        return float(np.max(d)) if np.all(np.isfinite(d)) else np.inf
 
     def cost(self, x):
         r = self.residuals(x)
@@ -80,16 +104,17 @@ class Problem:
         out = {}
         for kind in ('step', 'sine'):
             _, _, Q, _ = T.simulate(self.plant, g, kind)
-            out[kind] = np.sqrt(np.mean((Q - self.data[kind]) ** 2, axis=1))
+            rms = np.sqrt(np.mean((Q - self.data[kind]) ** 2, axis=1))
+            out[kind] = np.where(np.isfinite(rms), rms, -1.0)    # -1: diverged
         return out
 
 
 _P = None
 
 
-def _init(controller, plant, weights=(1.0, 1.0)):
+def _init(controller, plant, weights=(1.0, 1.0), robust=False, robust_tol=SENSITIVITY_TOL):
     global _P
-    _P = Problem(controller, plant, weights=weights)
+    _P = Problem(controller, plant, weights=weights, robust=robust, robust_tol=robust_tol)
 
 
 def _cost(x):
@@ -139,18 +164,18 @@ def joint_indices(prob, j):
 
 
 def identify(controller, plant, x0=None, cycles=4, block_iter=40, full_iter=150, workers=4,
-             seed=1, lsq=True, verbose=True, weights=(1.0, 1.0)):
+             seed=1, lsq=True, verbose=True, weights=(1.0, 1.0), robust=False, robust_tol=SENSITIVITY_TOL):
     """Staged identification:
       1. block-coordinate CMA-ES, one joint's gains at a time (fully coupled
          simulation, total cost), cycled over the joints;
       2. CMA-ES over all gains with a small step size;
       3. trust-region least squares."""
-    prob = Problem(controller, plant, weights=weights)
+    prob = Problem(controller, plant, weights=weights, robust=robust, robust_tol=robust_tol)
     lo, hi = prob.bounds()
     x = initial_guess(prob) if x0 is None else np.array(x0, float)
     x = np.clip(x, lo + 1e-6, hi - 1e-6)
     t0 = time.time()
-    with Pool(workers, initializer=_init, initargs=(controller, plant, weights)) as pool:
+    with Pool(workers, initializer=_init, initargs=(controller, plant, weights, robust, robust_tol)) as pool:
         f = pool.map(_cost, [x])[0]
         if verbose:
             print(f'  [{controller}] start rms {np.sqrt(f):.4f} rad', flush=True)
@@ -177,14 +202,18 @@ def identify(controller, plant, x0=None, cycles=4, block_iter=40, full_iter=150,
     return prob, x
 
 
-def to_json(prob, x, meta):
+def to_json(prob, x, meta, fitted=None):
+    """Per-joint rms on both experiments (for information), and rms_total on
+    the experiment(s) the gains were fitted to (the `fitted` problem)."""
     g = prob.gains(x)
     rms = prob.per_joint_rms(x)
+    fitted = prob if fitted is None else fitted
     return dict(controller=prob.controller, meta=meta,
                 gains={k: [float(v) for v in np.asarray(g[k])] for k in ('Kp', 'Ki', 'Kd', 'lambda', 'mu')},
                 x=[float(v) for v in x],
                 rms_step=[float(v) for v in rms['step']], rms_sine=[float(v) for v in rms['sine']],
-                rms_total=float(np.sqrt(prob.cost(x))))
+                rms_total=float(np.sqrt(fitted.cost(x))),
+                sensitivity={k: prob.sensitivity(g, k) for k in ('step', 'sine') if fitted.w[k] != 0})
 
 
 if __name__ == '__main__':
@@ -197,6 +226,9 @@ if __name__ == '__main__':
     ap.add_argument('--full-iter', type=int, default=150)
     ap.add_argument('--no-lsq', action='store_true')
     ap.add_argument('--weights', default='1,1', help='weights of the step and sine residuals, e.g. 1,0')
+    ap.add_argument('--robust', action='store_true', help='penalise numerically ill-conditioned closed loops')
+    ap.add_argument('--robust-tol', type=float, default=SENSITIVITY_TOL,
+                    help='max response change [rad] for a relative gain change of %g' % SENSITIVITY_EPS)
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--x0', default=None, help='json file with a previous fit to start from')
     ap.add_argument('--out', required=True)
@@ -206,8 +238,8 @@ if __name__ == '__main__':
     x0 = np.array(json.load(open(a.x0))['x']) if a.x0 else None
     w = tuple(float(v) for v in a.weights.split(','))
     prob, x = identify(a.controller, plant, x0=x0, cycles=a.cycles, full_iter=a.full_iter, seed=a.seed,
-                       lsq=not a.no_lsq, weights=w)
-    res = to_json(Problem(a.controller, plant), x, dict(lengths=a.lengths, com=a.com, g=a.g, seed=a.seed, weights=w))
+                       lsq=not a.no_lsq, weights=w, robust=a.robust, robust_tol=a.robust_tol)
+    res = to_json(Problem(a.controller, plant), x, dict(lengths=a.lengths, com=a.com, g=a.g, seed=a.seed, weights=w), fitted=prob)
     json.dump(res, open(a.out, 'w'), indent=1)
     print(json.dumps({k: res[k] for k in ('rms_step', 'rms_sine', 'rms_total')}))
     print(json.dumps(res['gains']))

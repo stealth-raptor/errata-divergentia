@@ -15,24 +15,32 @@ could not be matched before, and several inconsistencies found in the paper itse
 ## Run it
 
 ```
-octave --eval main
+octave --eval main                  # gains identified separately for each experiment -> results/
+octave --eval "main('shared')"      # one gain set per controller for both experiments -> results/shared_gains/
 ```
 
-It runs in a few minutes in Octave; no packages are needed, and it also runs in MATLAB. It
-simulates both controllers through both experiments and compares them with the paper in three
+Each runs in a few minutes in Octave; no packages are needed, and they also run in MATLAB. They
+simulate both controllers through both experiments and compare them with the paper in three
 ways:
 1. the published Tables 3 and 4;
 2. the same metrics recomputed from the paper's own figures, which do not fully agree with its
    tables;
 3. every published curve, joint by joint.
 
-Outputs: `results/summary.md`, the figure set, and `results/simulation_results.mat`.
+Outputs: `summary.md`, the figure set, and `simulation_results.mat`.
+
+**Gain sets.** The paper publishes no gains and does not say whether its step and sine
+experiments used the same ones. `controller_gains(controller, experiment)` holds three
+identified sets per controller: `'step'`, `'sine'` and `'shared'`. The default `main` uses the
+per-experiment sets, which match the figures most closely; `main('shared')` uses one set for
+both experiments, as a single controller would.
 
 Checks:
 
 ```
 octave --eval "addpath tools; verify_dynamics"   # dynamics vs Jacobian formula, energy conservation
 octave --eval "addpath tools; check_twin"        # Octave model == Python identification twin
+octave --eval "addpath tools; check_twin('shared')"
 ```
 
 ### Figures
@@ -43,7 +51,7 @@ octave --eval "addpath tools; check_twin"        # Octave model == Python identi
 | `fig12_step_torque.png` | Fig 12 | joint driving torques, step response (3×2 grid) |
 | `fig13…fig18_jointN_sine.png` | Figs 13–18 | sine response per joint: (a) position tracking trajectory, (b) tracking error |
 | `fig19_sine_torque.png` | Fig 19 | joint driving torques, sine response (3×2 grid) |
-| `compare_step.png`, `compare_sine.png` | Figs 6–11, 13–18 | every published curve (black) overlaid on this work (dashed), with the rms difference per joint |
+| `compare_step.png`, `compare_sine.png` | Figs 6–11, 13–18 | every published curve (thick black) overlaid on this work (thin colour), with the rms difference per joint |
 
 Colours are the paper's own: reference ("dir") red, PID green, FOPID blue. In the sine error
 panels and in Fig 19 the paper draws FOPID in red, which is kept. All signals are logged every
@@ -52,28 +60,32 @@ panels and in Fig 19 the paper draws FOPID in red, which is kept. All signals ar
 ## Result
 
 Every published curve of Figs 6–11 and 13–18 was read from the PDF, and the gains were
-identified so that the simulation matches them: one gain set per controller, for both
-experiments, as in the paper.
+identified so that the simulation matches them.
 
 **Match to the published curves** (rms of q_this work − q_paper, rad):
 
-| Controller | Experiment | J1 | J2 | J3 | J4 | J5 | J6 | mean | previous gains |
-|---|---|---|---|---|---|---|---|---|---|
-| PID | step | 0.157 | 0.050 | 0.076 | 0.104 | 0.187 | 0.076 | **0.108** | 0.297 |
-| PID | sine | 0.143 | 0.050 | 0.118 | 0.046 | 0.218 | 0.021 | **0.099** | 0.188 |
-| FOPID | step | 0.095 | 0.034 | 0.041 | 0.051 | 0.141 | 0.055 | **0.070** | 0.171 |
-| FOPID | sine | 0.062 | 0.032 | 0.076 | 0.017 | 0.157 | 0.030 | **0.062** | 0.099 |
+| Controller | Experiment | J1 | J2 | J3 | J4 | J5 | J6 | mean, separate gains (`main`) | mean, shared gains (`main('shared')`) | previous gains |
+|---|---|---|---|---|---|---|---|---|---|---|
+| PID | step | 0.168 | 0.083 | 0.049 | 0.046 | 0.142 | 0.065 | **0.092** | 0.108 | 0.297 |
+| PID | sine | 0.124 | 0.064 | 0.105 | 0.025 | 0.143 | 0.021 | **0.080** | 0.099 | 0.188 |
+| FOPID | step | 0.118 | 0.038 | 0.034 | 0.024 | 0.077 | 0.054 | **0.058** | 0.070 | 0.171 |
+| FOPID | sine | 0.050 | 0.046 | 0.069 | 0.016 | 0.108 | 0.019 | **0.051** | 0.062 | 0.099 |
 
-**Tables 3 and 4.** "Paper figures" is the same metric recomputed from the paper's own published
-curves. The paper's tables and figures do not fully agree with each other.
+The per-joint columns are for the separate gains. Separate gains lower every mean by 15–19 %,
+mostly on joints 3–5. Joint 1's step does not improve (audit report 4.3).
+
+**Tables 3 and 4** (separate gains). "Paper figures" is the same metric recomputed from the
+paper's own published curves. The paper's tables and figures do not fully agree with each other.
 
 | Metric | PID: paper table | PID: paper figures | PID: this work | FOPID: paper table | FOPID: paper figures | FOPID: this work |
 |---|---:|---:|---:|---:|---:|---:|
-| Step overshoot | 54.6 % | 59.1 % | 49.8 % | 31.2 % | 34.4 % | 35.9 % |
-| Step adjustment time (5 %) | 2.44 s | 2.32 s | 2.84 s | 1.89 s | 1.95 s | 2.10 s |
-| Step peak time | 1.39 s | 1.44 s | 1.43 s | 1.33 s | 1.46 s | 1.32 s |
-| Sine MSE | 2.27e-2 | 2.26e-2 | 2.04e-2 | 8.8e-3 | 8.8e-3 | 1.05e-2 |
-| Sine Σ\|τ\| | 3.74e4 | 2.32e4 | 1.05e4 | 2.57e4 | 3.74e4 | 9.96e3 |
+| Step overshoot | 54.6 % | 59.1 % | 44.0 % | 31.2 % | 34.4 % | 33.2 % |
+| Step adjustment time (5 %) | 2.44 s | 2.32 s | 2.98 s | 1.89 s | 1.95 s | 1.95 s |
+| Step peak time | 1.39 s | 1.44 s | 1.47 s | 1.33 s | 1.46 s | 1.42 s |
+| Sine MSE | 2.27e-2 | 2.26e-2 | 1.54e-2 | 8.8e-3 | 8.8e-3 | 5.5e-3 |
+| Sine Σ\|τ\| | 3.74e4 | 2.32e4 | 1.05e4 | 2.57e4 | 3.74e4 | 1.03e4 |
+
+The same tables for the shared gains are in `results/shared_gains/summary.md`.
 
 Why an exact match of every panel is not possible (details in the audit report):
 
@@ -131,7 +143,7 @@ docs/audit_report.md        the audit
 | Fractional operator | Oustaloup, N = 5, 1e-3…1e3 rad/s | FOMCON defaults |
 | Solver | RK4 at 1 ms, controller at 1 kHz, logging at 0.01 s | logging interval read from the paper's figures |
 | Metrics | on the 0.01 s grid; settling band 5 % | these reproduce the paper's own figures→table relation (audit 3.2, 3.5) |
-| Controller gains | identified from the 24 published curves of each controller (step and sine together) | **the paper publishes no gains** |
+| Controller gains | identified from the published curves: per experiment (default) or one set for both experiments (`main('shared')`) | **the paper publishes no gains**, nor says whether the two experiments shared them |
 
 ## Requirements
 
