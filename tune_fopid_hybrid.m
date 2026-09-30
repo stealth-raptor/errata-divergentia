@@ -20,7 +20,15 @@ function tuned = tune_fopid_hybrid(opts)
 %     'composite'  (default) ITAE of both experiments plus the five paper
 %                  metrics, with an extra penalty for any metric worse than
 %                  FOPID
+%     'torque'     as 'composite', but sine torque weighted 3x and the step
+%                  peak torque (the spike at the step instant) added with
+%                  weight 2, both also penalised if worse than the baseline
 %     'itae'       the paper's own fitness: step ITAE only (Eq. 29)
+%
+%   Reducing torque from an already tuned controller, comparing against the
+%   original FOPID but starting from the FO-PSO/GWO gains:
+%     tune_fopid_hybrid(struct('Fitness', 'torque', 'Start', {{'FOPSO_GWO'}}, ...
+%                              'PopSize', 12, 'MaxIter', 10))
 %
 %   Runtime. One cost evaluation is two full 5 s simulations; the first
 %   iteration prints an ETA. With the paper's budget (3000 evaluations) this
@@ -38,13 +46,17 @@ function tuned = tune_fopid_hybrid(opts)
 %       baseline is in the swarm.
 %
 %   Options (besides those of HYBRID_FOPSO_GWO, which are passed through):
-%     Fitness      'composite' or 'itae'
-%     Weights      1x7 weights of FOPID_FITNESS (overrides Fitness)
-%     Regret       extra weight on metrics worse than FOPID (composite only)
-%     Baseline     name for CONTROLLER_GAINS to start from, default 'FOPID'
+%     Fitness      'composite', 'torque' or 'itae'
+%     Weights      1x8 weights of FOPID_FITNESS (overrides Fitness)
+%     Regret       extra weight on metrics worse than the baseline
+%     Baseline     CONTROLLER_GAINS name the cost is normalised by (it
+%                  scores 1), default 'FOPID'
+%     Start        cell array of CONTROLLER_GAINS names put into the initial
+%                  swarm, default {Baseline}
 %     Bounds       struct with 1x5 fields lo, hi on [log10 Kp, log10 Ki,
 %                  log10 Kd, lambda, mu], applied to every joint
-%     OutFile      where the tuned gains are saved
+%     OutFile      where the tuned gains are saved; an existing file is
+%                  first copied to <name>_prev.mat
 %
 %   See also HYBRID_FOPSO_GWO, FOPID_FITNESS, CONTROLLER_GAINS, MAIN.
 
@@ -61,11 +73,13 @@ base = controller_gains(opts.Baseline);
 B    = search_space(opts.Bounds);
 
 switch lower(opts.Fitness)
-    case 'composite', fit.weights = [1 1 1 1 0.5 1 1];  fit.regret = opts.Regret;
-    case 'itae',      fit.weights = [1 0 0 0 0 0 0];    fit.regret = 0;
+    case 'composite', fit.weights = [1 1 1 1 0.5 1 1 0];  fit.regret = opts.Regret;
+    case 'torque',    fit.weights = [1 1 1 1 0.5 1 3 2];  fit.regret = opts.Regret;
+    case 'itae',      fit.weights = [1 0 0 0 0 0 0 0];    fit.regret = 0;
     otherwise, error('tune_fopid_hybrid:fitness', 'unknown fitness ''%s''', opts.Fitness);
 end
 if ~isempty(opts.Weights), fit.weights = opts.Weights; end
+if numel(fit.weights) == 7, fit.weights = [fit.weights 0]; end
 fit.abort_err = 5;
 
 fprintf('Evaluating the %s baseline ...\n', opts.Baseline);
@@ -77,19 +91,24 @@ print_metrics(opts.Baseline, ref);
 
 cost = @(z) fopid_fitness(P, decode(z, B), ref, fit);
 
-z_seed = encode(base, B);
-if any(z_seed < 0 | z_seed > 1)
-    warning('tune_fopid_hybrid:seed', ...
-            'the %s gains lie partly outside the search bounds; the seed is clipped', opts.Baseline);
+if isempty(opts.Start), opts.Start = {opts.Baseline}; end
+if ischar(opts.Start), opts.Start = {opts.Start}; end
+z_seed = zeros(numel(opts.Start), B.n);
+for i = 1:numel(opts.Start)
+    z_seed(i, :) = encode(controller_gains(opts.Start{i}), B);
+    if any(z_seed(i, :) < 0 | z_seed(i, :) > 1)
+        warning('tune_fopid_hybrid:seed', ...
+                'the %s gains lie partly outside the search bounds; the seed is clipped', opts.Start{i});
+    end
 end
 
-opt_opts = rmfield(opts, {'Fitness', 'Weights', 'Regret', 'Baseline', 'Bounds', 'OutFile'});
+opt_opts = rmfield(opts, {'Fitness', 'Weights', 'Regret', 'Baseline', 'Start', 'Bounds', 'OutFile'});
 opt_opts.Seeds = min(max(z_seed, 0), 1);
 % a checkpoint is only resumed if it was written for the same cost function
-opt_opts.CheckpointTag = {fit.weights, fit.regret, B.lo, B.hi, ref};
+opt_opts.CheckpointTag = {fit.weights, fit.regret, B.lo, B.hi, ref, opts.Start};
 
-fprintf('FO-PSO/GWO: %d particles x %d iterations, 30 parameters, fitness ''%s''\n', ...
-        opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness);
+fprintf('FO-PSO/GWO: %d particles x %d iterations, 30 parameters, fitness ''%s'', start %s\n', ...
+        opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness, strjoin(opts.Start, ' + '));
 [z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
 
 gains = decode(z_best, B);
@@ -104,6 +123,12 @@ tuned.baseline = ref;
 tuned.info     = info;
 tuned.fitness  = fit;
 tuned.bounds   = B;
+if exist(opts.OutFile, 'file')
+    [d, n, e] = fileparts(opts.OutFile);
+    prev = fullfile(d, [n '_prev' e]);
+    copyfile(opts.OutFile, prev);
+    fprintf('Previous gains kept in %s\n', prev);
+end
 save(opts.OutFile, '-struct', 'tuned');
 if ~isempty(opt_opts.Checkpoint) && exist(opt_opts.Checkpoint, 'file')
     delete(opt_opts.Checkpoint);     % finished: the next call starts afresh
@@ -143,14 +168,15 @@ end
 % ------------------------------------------------------------------------
 function print_metrics(name, raw)
 fprintf(['  %s: ITAE step %.4g, ITAE sine %.4g, overshoot %.1f %%, adjustment %.2f s, ' ...
-         'peak %.2f s, MSE %.3e, torque %.4g\n'], name, raw);
+         'peak %.2f s, MSE %.3e, torque %.4g, step peak torque %.4g\n'], name, raw);
 end
 
 function print_comparison(name, ref, raw)
 labels = {'ITAE step', 'ITAE sine', 'Step overshoot (%)', 'Step adjustment time (s)', ...
-          'Step peak time (s)', 'Sine MSE (rad^2)', 'Sine torque (Nm)'};
+          'Step peak time (s)', 'Sine MSE (rad^2)', 'Sine torque (Nm)', ...
+          'Step peak torque (Nm)'};
 fprintf('\n%-26s %12s %12s %9s\n', 'Metric', name, 'FOPSO-GWO', 'change');
-for k = 1:7
+for k = 1:8
     fprintf('%-26s %12.4g %12.4g %+8.1f%%\n', labels{k}, ref(k), raw(k), 100 * (raw(k) / ref(k) - 1));
 end
 end
@@ -159,7 +185,7 @@ end
 function opts = set_defaults(opts)
 has_pct = ~isempty(ver('parallel')) && license('test', 'Distrib_Computing_Toolbox');
 d = struct('PopSize', 30, 'MaxIter', 100, 'Fitness', 'composite', 'Weights', [], ...
-           'Regret', 1, 'Baseline', 'FOPID', ...
+           'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, ...
            'Bounds', struct('lo', [-1 -4 -1 0.5 0.5], 'hi', [5 5 3 1.95 1.6]), ...
            'UseParallel', has_pct, ...
            'Checkpoint', fullfile('results', 'fopso_gwo_checkpoint.mat'), ...

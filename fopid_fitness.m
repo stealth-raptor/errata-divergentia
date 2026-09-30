@@ -8,14 +8,21 @@ function [J, raw] = fopid_fitness(P, gains, ref, fit)
 %            FOPID), used to normalise the cost; [] returns J = NaN and only
 %            computes raw
 %     fit    struct with
-%              weights       1x7 weights on the entries of raw (below)
+%              weights       1x8 weights on the entries of raw (below); a
+%                            1x7 vector is padded with a zero weight on the
+%                            step peak torque
 %              regret        extra weight on every metric that ends up worse
 %                            than the reference (pushes the search towards
 %                            gain sets that beat FOPID on every count)
 %              abort_err     stop a simulation once any |error| exceeds this
 %
 %   raw = [ITAE_step, ITAE_sine, overshoot, adjustment time, peak time,
-%          sine MSE, sine torque]
+%          sine MSE, sine torque, step peak torque]
+%
+%   The step peak torque is max|tau| over the step run, averaged over the
+%   joints. It is not one of the paper's metrics, but without it the tuner
+%   cannot see the torque spike at the step instant, which the summed sine
+%   torque hardly registers.
 %
 %   ITAE is the paper's fitness function, Eq. 29,
 %       ITAE = integral of  t * sum_j |e_j(t)|  dt,
@@ -26,20 +33,22 @@ function [J, raw] = fopid_fitness(P, gains, ref, fit)
 %
 %       J = sum(w .* raw./ref) / sum(w)  +  regret * sum(max(0, raw./ref - 1))
 %
-%   (the regret sum runs over the five paper metrics only). A run that
+%   (the regret sum runs over entries 3-8, the five paper metrics and the
+%   peak torque, where their weight is non-zero). A run that
 %   diverges scores 1e3 + 1e3 * (fraction of the 5 s it failed to survive),
 %   so unstable candidates are still ranked by how long they held on.
 %
 %   See also TUNE_FOPID_HYBRID, SIMULATE_CLOSED_LOOP, PERFORMANCE_METRICS.
 
 if nargin < 4 || isempty(fit), fit = struct(); end
-if ~isfield(fit, 'weights'),   fit.weights = [1 1 1 1 0.5 1 1]; end
+if ~isfield(fit, 'weights'),   fit.weights = [1 1 1 1 0.5 1 1 0]; end
+if numel(fit.weights) == 7,    fit.weights = [fit.weights 0]; end
 if ~isfield(fit, 'regret'),    fit.regret = 1; end
 if ~isfield(fit, 'abort_err'), fit.abort_err = 5; end
 
 opt.abort_err = fit.abort_err;
 T = 5;
-raw = nan(1, 7);
+raw = nan(1, 8);
 
 step = simulate_closed_loop(P, gains, 'step', opt);
 if step.diverged
@@ -54,7 +63,7 @@ end
 
 ms = performance_metrics(step, 'step');
 mn = performance_metrics(sine, 'sine');
-raw = [itae(step), itae(sine), ms.mean, mn.mean];
+raw = [itae(step), itae(sine), ms.mean, mn.mean, mean(max(abs(step.u), [], 2))];
 
 if isempty(ref)
     J = NaN;
@@ -62,8 +71,10 @@ if isempty(ref)
 end
 
 ratio = raw ./ max(ref, eps);
+judged = 3:8;
+judged = judged(fit.weights(judged) > 0);
 J = sum(fit.weights .* ratio) / sum(fit.weights) ...
-    + fit.regret * sum(max(0, ratio(3:7) - 1));
+    + fit.regret * sum(max(0, ratio(judged) - 1));
 end
 
 % ------------------------------------------------------------------------

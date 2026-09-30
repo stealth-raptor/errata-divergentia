@@ -92,6 +92,12 @@ if isfield(results, 'FOPSO_GWO')
         out(['| %s | ' fmt{k} ' | ' fmt{k} ' | %+.1f%% | ' fmt{k} ' |\n'], ...
             labels{k}, m0, m3, 100*(m3/m0 - 1), paper.FBPA(k));
     end
+    % not a paper metric: the torque spike at the step instant (max |tau|,
+    % averaged over the joints), which the tuner's 'torque' fitness targets
+    pk = @(run) mean(max(abs(run.u), [], 2));
+    m0 = pk(results.FOPID.step);
+    m3 = pk(results.FOPSO_GWO.step);
+    out('| Step peak torque (Nm) | %.4g | %.4g | %+.1f%% | n/a |\n', m0, m3, 100*(m3/m0 - 1));
 end
 
 rows = {'Step overshoot (%)',        'step_metrics', 'overshoot',       '%.1f'
