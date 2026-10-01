@@ -51,12 +51,14 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %       grey-wolf pull on top of PSO's c1 = c2 = 2 pushed the swarm past it
 %       (the more c3, the noisier); splitting the same total between the
 %       PSO terms and the wolves did best.
-%   On the development seeds, cost 'fbpa' (TOOLS/ABLATE_OPTIMIZERS has the
-%   first settings' runs): mean best cost 0.324 against PSO's 0.358; the
-%   first settings (c1 = c2 = c3 = 1, a 0.9 -> 0.4), developed on the
-%   paper's test functions (benchmark_optimizer.m on the branch
-%   claude/pensive-ramanujan-mmu564), collapsed the swarm too early on this
-%   problem.
+%   On the development seeds the final settings beat PSO's mean cost under
+%   both the paper's fitness (0.091 against 0.112) and cost 'fbpa' (0.324
+%   against 0.358); the first settings (c1 = c2 = c3 = 1, a 0.9 -> 0.4),
+%   developed on the paper's test functions (benchmark_optimizer.m on the
+%   branch claude/pensive-ramanujan-mmu564), collapsed the swarm too early on
+%   this problem.  TOOLS/DEVELOP_FOPSO_GWO has every candidate tried (also
+%   with pack_ramp and explorers below, which did not do better) and the
+%   rule that chose these.
 %
 %   Schedules:
 %     w = wmax - (wmax - wmin) k / MaxIter      linearly decreasing inertia

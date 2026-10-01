@@ -115,6 +115,7 @@ end
 
 runs = load_optimizer_runs(fullfile('results', 'optimizer_runs'));
 ablation = load_optimizer_runs(fullfile('results', 'ablation_runs'));
+ablation = [ablation, load_optimizer_runs(fullfile('results', 'dev_runs'))];
 
 write_summary(results, paper, figs, runs, controllers, outdir, mode, ablation);
 plot_paper_figures(results, outdir);
@@ -153,10 +154,12 @@ end
 % ------------------------------------------------------------------------
 function runs = load_optimizer_runs(folder)
 %LOAD_OPTIMIZER_RUNS  The runs of TOOLS/COMPARE_OPTIMIZERS, if any.
-%   (or of TOOLS/ABLATE_OPTIMIZERS, from results/ablation_runs/).  variant is
-%   the file name's prefix: the optimiser, or the ablation variant.
+%   (or of TOOLS/ABLATE_OPTIMIZERS, from results/ablation_runs/, and of
+%   TOOLS/DEVELOP_FOPSO_GWO, from results/dev_runs/).  variant is the file
+%   name's prefix: the optimiser, the ablation variant or the candidate.
 runs = struct('optimizer', {}, 'variant', {}, 'cost', {}, 'seed', {}, 'J', {}, ...
-              'evaluations', {}, 'metrics', {}, 'history', {}, 'popsize', {}, 'late', {});
+              'evaluations', {}, 'metrics', {}, 'history', {}, 'popsize', {}, 'late', {}, ...
+              'dev', {});
 if ~exist(folder, 'dir'), return; end
 d = dir(fullfile(folder, '*_seed*.mat'));
 for f = d(:)'
@@ -173,6 +176,7 @@ for f = d(:)'
     r.history     = S.info.history;
     r.popsize     = S.info.options.PopSize;
     r.late        = mean(S.info.mean_history(max(1, end-24):end));   % swarm state at the end
+    r.dev         = r.seed > 100;                                     % a development seed
     runs(end+1) = r; %#ok<AGROW>
 end
 end
@@ -297,7 +301,8 @@ if ~isempty(runs)
     rerun = [];
     if has('FBPA'), rerun = results.FBPA.summary; end
     report_optimizers(out, runs, paper, rerun);
-    report_ablation(out, ablation, runs);
+    report_ablation(out, ablation(~[ablation.dev]), runs);
+    report_development(out, ablation([ablation.dev]), runs);
 end
 
 % ---- 5. per joint --------------------------------------------------------
@@ -546,7 +551,7 @@ out('\n### From the first FOPSO-GWO settings to the final ones: one change at a 
 out('`tools/ablate_optimizers.m` reruns the optimisers with one setting changed, under the\n');
 out('same budget, seed controller, initial swarms and cost; `fopso_gwo_v1` are the runs of\n');
 out('FOPSO-GWO''s first settings, which plain PSO beat on the tracking costs. The final settings\n');
-out('were chosen on separate development seeds (`hybrid_fopso_gwo.m`). The last column is the\n');
+out('were chosen on separate development seeds (next subsection). The last column is the\n');
 out('mean cost of the swarm''s current positions over the last 25 iterations: unstable\n');
 out('candidates score 1e3-2e3, so a large value means the swarm is still scattered (or thrown\n');
 out('about), a value near the best cost that it has collapsed onto one point.\n');
@@ -568,6 +573,67 @@ if all(ismember({'fbpa_v02', 'fopso_c2'}, {abl.variant}))
     out('the range, shrinking to 6e-7) does not move the particles, so the two differ only in their\n');
     out('random numbers. The gap between them is the run-to-run noise at this number of seeds.\n');
 end
+end
+
+function report_development(out, dev, runs)
+%REPORT_DEVELOPMENT  How FOPSO-GWO's final settings were chosen (TOOLS/DEVELOP_FOPSO_GWO).
+if isempty(dev), return; end
+order = {'V1',  'first settings: c = 1 / 1 / 1, fractional order 0.9 -> 0.4 (Eq. 27)'
+         'A',   'c = 2 / 2 / 0.5, order held at 0.9'
+         'B',   'c = 2 / 2 / 1, order 0.9'
+         'C',   'c = 2 / 2 / 0.5, order 0.9 -> 0.4'
+         'E',   'A with a linear a_g'
+         'G',   'C with the order held at 0.9 for 60 % of the run'
+         'H',   'c = 2 / 2 / 1.5, grey-wolf pull growing from 0'
+         'M',   'c = 1.75 / 1.75 / 0.5, order 0.9'
+         'N',   'c = 2 / 1 / 1, order 0.9'
+         'R',   'L, starting as PSO, grey-wolf share growing over the run'
+         'R2',  'L, starting as PSO, grey-wolf share complete at mid-run'
+         'S',   'L with half the swarm pulled as in PSO, outside the pack'
+         'L',   '**final settings: c = 1.5 / 1.5 / 1, order 0.9**'
+         'PSO', 'plain PSO'};
+costs = intersect({'paper', 'fbpa'}, unique({dev.cost}));
+costs = fliplr(sort(costs));                   % paper, then fbpa
+out('\n### How the final FOPSO-GWO settings were chosen\n\n');
+out('`tools/develop_fopso_gwo.m`: candidate settings on development seeds 101-104, which the\n');
+out('comparison above never uses, run exactly as in it. Mean best cost, its change against PSO\n');
+out('on the same seeds, and the number of seeds on which the candidate beats PSO:\n\n');
+out('| Candidate | Settings |');
+for c = costs, out(' %s: mean | vs PSO | seeds won |', c{1}); end
+out('\n|---|---|');
+for c = costs, out('---:|---:|---:|'); end
+out('\n');
+for i = 1:size(order, 1)
+    if ~any(strcmp({dev.variant}, order{i, 1})), continue; end
+    out('| %s | %s |', order{i, 1}, order{i, 2});
+    for c = costs
+        sel = dev(strcmp({dev.variant}, order{i, 1}) & strcmp({dev.cost}, c{1}));
+        ref = dev(strcmp({dev.variant}, 'PSO') & strcmp({dev.cost}, c{1}));
+        if isempty(sel), out(' | | |'); continue; end
+        [~, a, b] = intersect([sel.seed], [ref.seed]);
+        if strcmp(order{i, 1}, 'PSO')
+            out(' %.4f | | |', mean([sel.J]));
+        else
+            out(' %.4f | %+.1f %% | %d of %d |', mean([sel.J]), ...
+                100 * (mean([sel.J]) / mean([ref.J]) - 1), sum([sel(a).J] < [ref(b).J]), numel(a));
+        end
+    end
+    out('\n');
+end
+out('\nThe first round ran under `fbpa` only and chose L. Under the paper''s fitness L then lost\n');
+out('to PSO on the comparison''s seeds 1-4, so a second round added `paper` to the development,\n');
+out('with four candidates designed for it (N, R, R2, S). The rule, fixed before its last two\n');
+out('candidates had run: take the candidate whose mean beats PSO''s under both costs by the\n');
+out('largest margin on the weaker of the two. Only L and N beat PSO under both, L by more\n');
+out('(9 %% against 5 %%), so L stayed.');
+p_dev  = dev(strcmp({dev.variant}, 'PSO') & strcmp({dev.cost}, 'paper'));
+p_test = runs(strcmp({runs.optimizer}, 'PSO') & strcmp({runs.cost}, 'paper') & [runs.seed] <= 4);
+if ~isempty(p_dev) && ~isempty(p_test)
+    out(' Under `paper` the seed-to-seed spread is as large as the\n');
+    out('differences: PSO''s mean is %.3f on these seeds and %.3f on the comparison''s seeds 1-4.', ...
+        mean([p_dev.J]), mean([p_test.J]));
+end
+out('\n');
 end
 
 function J = cost_after(r, budget)
