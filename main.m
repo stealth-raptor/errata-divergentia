@@ -114,8 +114,9 @@ for i = 1:numel(controllers)
 end
 
 runs = load_optimizer_runs(fullfile('results', 'optimizer_runs'));
+ablation = load_optimizer_runs(fullfile('results', 'ablation_runs'));
 
-write_summary(results, paper, figs, runs, controllers, outdir, mode);
+write_summary(results, paper, figs, runs, controllers, outdir, mode, ablation);
 plot_paper_figures(results, outdir);
 if ~isempty(runs)
     plot_convergence(runs, fullfile(outdir, 'convergence.png'));
@@ -152,28 +153,32 @@ end
 % ------------------------------------------------------------------------
 function runs = load_optimizer_runs(folder)
 %LOAD_OPTIMIZER_RUNS  The runs of TOOLS/COMPARE_OPTIMIZERS, if any.
-runs = struct('optimizer', {}, 'cost', {}, 'seed', {}, 'J', {}, 'evaluations', {}, ...
-              'metrics', {}, 'history', {}, 'popsize', {});
+%   (or of TOOLS/ABLATE_OPTIMIZERS, from results/ablation_runs/).  variant is
+%   the file name's prefix: the optimiser, or the ablation variant.
+runs = struct('optimizer', {}, 'variant', {}, 'cost', {}, 'seed', {}, 'J', {}, ...
+              'evaluations', {}, 'metrics', {}, 'history', {}, 'popsize', {}, 'late', {});
 if ~exist(folder, 'dir'), return; end
 d = dir(fullfile(folder, '*_seed*.mat'));
 for f = d(:)'
-    tok = regexp(f.name, '_(paper|fbpa_all|fbpa|whole)_seed(\d+)\.mat$', 'tokens', 'once');
+    tok = regexp(f.name, '^(.*)_(paper|fbpa_all|fbpa|whole)_seed(\d+)\.mat$', 'tokens', 'once');
     if isempty(tok), continue; end
     S = load(fullfile(folder, f.name));
     r.optimizer   = S.optimizer;
-    r.cost        = tok{1};
-    r.seed        = str2double(tok{2});
+    r.variant     = tok{1};
+    r.cost        = tok{2};
+    r.seed        = str2double(tok{3});
     r.J           = S.cost;
     r.evaluations = S.info.evaluations;
     r.metrics     = S.metrics;
     r.history     = S.info.history;
     r.popsize     = S.info.options.PopSize;
+    r.late        = mean(S.info.mean_history(max(1, end-24):end));   % swarm state at the end
     runs(end+1) = r; %#ok<AGROW>
 end
 end
 
 % ------------------------------------------------------------------------
-function write_summary(results, paper, figs, runs, controllers, outdir, mode)
+function write_summary(results, paper, figs, runs, controllers, outdir, mode, ablation)
 %WRITE_SUMMARY  The comparison tables, on the screen and in <outdir>/summary.md.
 
 fid = fopen(fullfile(outdir, 'summary.md'), 'w');
@@ -292,6 +297,7 @@ if ~isempty(runs)
     rerun = [];
     if has('FBPA'), rerun = results.FBPA.summary; end
     report_optimizers(out, runs, paper, rerun);
+    report_ablation(out, ablation, runs);
 end
 
 % ---- 5. per joint --------------------------------------------------------
@@ -523,6 +529,37 @@ for i = 1:numel(best)
         row(f7, m(1:7)), strjoin(cells, ' | '));
 end
 out('\nConvergence: `convergence.png` (best cost against cost evaluations).\n');
+end
+
+function report_ablation(out, abl, runs)
+%REPORT_ABLATION  Why plain PSO wins: the optimisers with one setting changed.
+if isempty(abl), return; end
+order = {'pso', 'PSO, unmodified (c1 = c2 = 2, inertia 0.9 -> 0.4, |v| <= 0.2)'
+         'pso_c1', 'PSO with c1 = c2 = 1'
+         'fopso_gwo', 'FOPSO-GWO, unmodified (c1 = c2 = c3 = 1, fractional memory, |v| <= 0.2)'
+         'fopso_gwo_c2', 'FOPSO-GWO with c1 = c2 = c3 = 2'
+         'fopso_c2', 'FO-PSO alone: FOPSO-GWO without the grey-wolf term, c1 = c2 = 2'
+         'fbpa', 'FBPA, unmodified (c = 2, fractional memory, beetle, |v| <= 1)'
+         'fbpa_v02', 'FBPA with |v| <= 0.2'};
+out('\n### Why plain PSO wins: one change at a time\n\n');
+out('`tools/ablate_optimizers.m` reruns the optimisers with one setting changed, under the\n');
+out('same budget, seed controller, initial swarms and cost. The last column is the mean cost of\n');
+out('the swarm''s current positions over the last 25 iterations: unstable candidates score\n');
+out('1e3-2e3, so a large value means the swarm is still scattered (or thrown about), a value\n');
+out('near the best cost that it has collapsed onto one point.\n');
+for c = unique({abl.cost})
+    out('\nCost `%s`:\n\n', c{1});
+    out('| Optimiser | runs | best | median | mean | worst | swarm, last 25 iterations |\n');
+    out('|---|---:|---:|---:|---:|---:|---:|\n');
+    all_ = [runs(strcmp({runs.cost}, c{1})), abl(strcmp({abl.cost}, c{1}))];
+    for i = 1:size(order, 1)
+        sel = all_(strcmp({all_.variant}, order{i, 1}));
+        if isempty(sel), continue; end
+        J = [sel.J];
+        out('| %s | %d | %.4f | %.4f | %.4f | %.4f | %.4g |\n', order{i, 2}, numel(sel), ...
+            min(J), median(J), mean(J), max(J), mean([sel.late]));
+    end
+end
 end
 
 function J = cost_after(r, budget)

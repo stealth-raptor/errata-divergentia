@@ -51,7 +51,7 @@ end
 
 root = fileparts(fileparts(mfilename('fullpath')));
 outdir = fullfile(root, 'results', 'optimizer_runs');
-if ~exist(outdir, 'dir'), mkdir(outdir); end
+if ~exist(outdir, 'dir'), [~, ~] = mkdir(outdir); end   % no error if a parallel run made it
 
 for s = seeds
     for c = costs
