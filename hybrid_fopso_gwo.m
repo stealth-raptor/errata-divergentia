@@ -81,9 +81,10 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %     alpha_hold   0           ... after being held at alpha0 for this fraction
 %                              of the run
 %     c3_ramp      false       true: the GWO coefficient grows from 0 to c3
-%     pack_ramp    false       true: the GWO coefficient grows from 0 to c3
-%                              while c1 and c2 shrink from c1 + c3/2 and
-%                              c2 + c3/2, keeping the sum of the three
+%     pack_ramp    0           > 0: over this fraction of the run the GWO
+%                              coefficient grows from 0 to c3 while c1 and c2
+%                              shrink from c1 + c3/2 and c2 + c3/2, keeping
+%                              the sum of the three (0: off)
 %     vmax         0.2         velocity clamp, as a fraction of each range
 %                              (the paper's |v| <= 1 is in raw units)
 %     Seeds        []          m x nvar rows in [0,1] to put into the swarm
@@ -152,10 +153,11 @@ for k = st.k + 1 : opts.MaxIter
     a_g = 2 * (1 - tau)^opts.gwo_power;
     c1  = opts.c1;  c2 = opts.c2;  c3 = opts.c3;
     if opts.c3_ramp, c3 = c3 * tau; end
-    if opts.pack_ramp                    % PSO at the start, FOPSO-GWO at the end
-        c1 = c1 + opts.c3 * (1 - tau) / 2;
-        c2 = c2 + opts.c3 * (1 - tau) / 2;
-        c3 = opts.c3 * tau;
+    if opts.pack_ramp > 0                % PSO at the start, FOPSO-GWO from pack_ramp on
+        r  = min(1, tau / opts.pack_ramp);
+        c1 = c1 + opts.c3 * (1 - r) / 2;
+        c2 = c2 + opts.c3 * (1 - r) / 2;
+        c3 = opts.c3 * r;
     end
 
     % ---- velocity: fractional memory + PSO + GWO attractors -------------
@@ -309,7 +311,7 @@ end
 function opts = set_defaults(opts, nvar)
 d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1.5, 'c2', 1.5, 'c3', 1, 'gwo_power', 2, ...
            'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0, 'alpha_hold', 0, ...
-           'c3_ramp', false, 'pack_ramp', false, ...
+           'c3_ramp', false, 'pack_ramp', 0, ...
            'vmax', 0.2, 'Seeds', zeros(0, nvar), 'SeedFraction', 0.3, ...
            'SeedJitter', 0.05, 'UseParallel', false, 'Checkpoint', '', ...
            'Resume', false, 'CheckpointTag', [], 'RandomSeed', [], 'Verbose', true);
