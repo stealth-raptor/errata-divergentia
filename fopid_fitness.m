@@ -33,7 +33,8 @@ function [J, raw, effort] = fopid_fitness(P, gains, ref, fit)
 %                            into the whole-controller cost below, with
 %                            fields floor, weights (1x4), ref (step_sum,
 %                            sine_sum, step_tv, sine_tv), cap (kick, step,
-%                            sine: 1x6 each) and cap_penalty
+%                            sine: 1x6 each), os_cap (scalar, %) and
+%                            cap_penalty
 %
 %   raw = [ITAE_step, ITAE_sine, overshoot, adjustment time, peak time,
 %          sine MSE, sine torque, step peak torque]
@@ -69,7 +70,9 @@ function [J, raw, effort] = fopid_fitness(P, gains, ref, fit)
 %     J = weighted mean of tracking (fit.weights(1:6)) and effort
 %         (fit.whole.weights) + regret * (paper metrics worse than ref)
 %         + cap_penalty * sum over joints of max(0, peak/cap - 1) for the
-%           kick, the step after the kick and the sine run
+%           kick, the step after the kick and the sine run, and of
+%           max(0, overshoot/os_cap - 1): the mean overshoot of Table 3
+%           must not hide one joint that overshoots far more
 %   effort returns the CONTROL_EFFORT of both runs (fields step, sine).
 %
 %   See also TUNE_FOPID_HYBRID, SIMULATE_CLOSED_LOOP, PERFORMANCE_METRICS.
@@ -127,7 +130,7 @@ if whole
     eff = [mean(es.sum) / W.ref.step_sum, mean(en.sum) / W.ref.sine_sum, ...
            mean(es.tv)  / W.ref.step_tv,  mean(en.tv)  / W.ref.sine_tv];
     over = sum(max(0, es.kick ./ W.cap.kick - 1)) + sum(max(0, es.peak ./ W.cap.step - 1)) ...
-           + sum(max(0, en.peak ./ W.cap.sine - 1));
+           + sum(max(0, en.peak ./ W.cap.sine - 1)) + sum(max(0, ms.overshoot(:)' / W.os_cap - 1));
     J = (sum(fit.weights(1:6) .* track) + sum(W.weights .* eff)) / (sum(fit.weights(1:6)) + sum(W.weights)) ...
         + fit.regret * sum(max(0, ratio(3:7) - 1)) + W.cap_penalty * over;
 else

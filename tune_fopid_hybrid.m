@@ -43,8 +43,10 @@ function tuned = tune_fopid_hybrid(opts)
 %                  sine run, in the step run after the derivative kick, and
 %                  in the kick itself, must stay within the largest the
 %                  paper's own controllers need (PID, FOPID and FBPA-FOPID,
-%                  all identified gain sets).  Every paper metric must still
-%                  beat the paper's FBPA-FOPID (regret 2).  Implies
+%                  all identified gain sets), times CapScale; and no joint
+%                  may overshoot more than the paper's FBPA-FOPID does on
+%                  its worst joint (its figures).  Every paper metric must
+%                  still beat the paper's FBPA-FOPID (regret 2).  Implies
 %                  Target 'FBPA'.
 %
 %   The paper's FBPA-FOPID, reproduced with the paper's optimiser and fitness:
@@ -96,6 +98,7 @@ function tuned = tune_fopid_hybrid(opts)
 %     Robust       penalise numerically ill-conditioned closed loops (see
 %                  FOPID_FITNESS); default true when SIMULATE_MEX is built,
 %                  since it doubles the cost of a candidate
+%     CapScale     'whole' only: multiplies the peak-torque caps (default 1)
 %     Regret       extra weight on metrics worse than the reference (default
 %                  1, or 2 with Target = 'FBPA' or 'FBPA-all')
 %     Baseline     CONTROLLER_GAINS name the cost is normalised by (it
@@ -141,7 +144,7 @@ fit.whole = [];
 if strcmpi(opts.Fitness, 'whole')
     opts.Target = 'FBPA';
     fprintf('Measuring the torque of the paper''s controllers (caps and references) ...\n');
-    fit.whole = whole_references(P);
+    fit.whole = whole_references(P, opts.CapScale);
 end
 switch upper(opts.Target)
     case 'BASELINE'
@@ -198,7 +201,7 @@ for i = 1:numel(opts.Start)
 end
 
 opt_opts = rmfield(opts, {'Optimizer', 'Fitness', 'Weights', 'Regret', 'Baseline', 'Start', ...
-                          'Bounds', 'OutFile', 'Target', 'Robust'});
+                          'Bounds', 'OutFile', 'Target', 'Robust', 'CapScale'});
 opt_opts.Seeds = min(max(z_seed, 0), 1);
 % a checkpoint is only resumed if it was written for the same cost function
 opt_opts.CheckpointTag = {opts.Optimizer, fit.weights, fit.regret, fit.time_offset, fit.robust, ...
@@ -246,14 +249,16 @@ fprintf('\nSaved the tuned gains to %s; run MAIN to compare and plot.\n', opts.O
 end
 
 % ------------------------------------------------------------------------
-function W = whole_references(P)
+function W = whole_references(P, cap_scale)
 %WHOLE_REFERENCES  Torque caps and references of the whole-controller cost.
 %   Caps: on each joint, the largest peak torque any reproduction of the
 %   paper's controllers needs (PID, FOPID and FBPA-FOPID, with every
 %   identified gain set the experiment uses: its own and the shared one),
 %   in the derivative kick of the step, in the rest of the step run and in
 %   the sine run.  References: the effort and ITAE of the reproduced
-%   FBPA-FOPID (gains identified from each experiment's curves).
+%   FBPA-FOPID (gains identified from each experiment's curves).  The
+%   per-joint overshoot cap is the worst joint of the paper's own
+%   FBPA-FOPID step figures.
 o = struct('log_dt', 1e-3);
 W.floor = 0.5;
 W.weights = [1 1 1 1];          % sum |tau| step, sine; total variation step, sine
@@ -279,9 +284,15 @@ es = control_effort(step, 'step');
 en = control_effort(sine, 'sine');
 W.ref = struct('step_sum', mean(es.sum), 'sine_sum', mean(en.sum), ...
                'step_tv', mean(es.tv), 'sine_tv', mean(en.tv));
+for f = {'kick', 'step', 'sine'}
+    W.cap.(f{1}) = cap_scale * W.cap.(f{1});
+end
+m = performance_metrics(paper_curves('FBPA', 'step'), 'step');
+W.os_cap = max(m.overshoot);
+W.cap_scale = cap_scale;
 W.itae = [itae_grid(step), itae_grid(sine)];
-fprintf('  peak torque caps per joint [Nm]: kick %s, step %s, sine %s\n', ...
-        mat2str(W.cap.kick, 3), mat2str(W.cap.step, 3), mat2str(W.cap.sine, 3));
+fprintf('  peak torque caps per joint [Nm]: kick %s, step %s, sine %s; overshoot cap %.1f %%\n', ...
+        mat2str(W.cap.kick, 3), mat2str(W.cap.step, 3), mat2str(W.cap.sine, 3), W.os_cap);
 end
 
 function v = itae_grid(out)
@@ -348,7 +359,7 @@ switch upper(strrep(opts.Optimizer, '_', '-'))
 end
 stem = lower(strrep(opts.Optimizer, '-', '_'));
 d = struct('PopSize', 30, 'MaxIter', 100, 'Fitness', fitness, 'Weights', [], ...
-           'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, 'Target', 'baseline', ...
+           'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, 'Target', 'baseline', 'CapScale', 1, ...
            'Robust', exist('simulate_mex') == 3, ...                       %#ok<EXIST>
            'Bounds', struct('lo', [-2 -4 -1 0.05 0.05], 'hi', [5 5 3 1.95 1.95]), ...
            'UseParallel', has_pct, ...
