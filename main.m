@@ -536,17 +536,20 @@ function report_ablation(out, abl, runs)
 if isempty(abl), return; end
 order = {'pso', 'PSO, unmodified (c1 = c2 = 2, inertia 0.9 -> 0.4, \|v\| <= 0.2)'
          'pso_c1', 'PSO with c1 = c2 = 1'
-         'fopso_gwo', 'FOPSO-GWO, unmodified (c1 = c2 = c3 = 1, fractional memory, \|v\| <= 0.2)'
-         'fopso_gwo_c2', 'FOPSO-GWO with c1 = c2 = c3 = 2'
-         'fopso_c2', 'FO-PSO alone: FOPSO-GWO without the grey-wolf term, c1 = c2 = 2'
+         'fopso_gwo', 'FOPSO-GWO, final settings (c1 = c2 = 1.5, c3 = 1, fractional order 0.9)'
+         'fopso_gwo_v1', 'FOPSO-GWO, first settings (c1 = c2 = c3 = 1, fractional order 0.9 -> 0.4)'
+         'fopso_gwo_c2', 'FOPSO-GWO, first settings with c1 = c2 = c3 = 2'
+         'fopso_c2', 'FO-PSO alone: first settings without the grey-wolf term, c1 = c2 = 2'
          'fbpa', 'FBPA, unmodified (c = 2, fractional memory, beetle, \|v\| <= 1)'
          'fbpa_v02', 'FBPA with \|v\| <= 0.2'};
-out('\n### Why plain PSO wins: one change at a time\n\n');
+out('\n### From the first FOPSO-GWO settings to the final ones: one change at a time\n\n');
 out('`tools/ablate_optimizers.m` reruns the optimisers with one setting changed, under the\n');
-out('same budget, seed controller, initial swarms and cost. The last column is the mean cost of\n');
-out('the swarm''s current positions over the last 25 iterations: unstable candidates score\n');
-out('1e3-2e3, so a large value means the swarm is still scattered (or thrown about), a value\n');
-out('near the best cost that it has collapsed onto one point.\n');
+out('same budget, seed controller, initial swarms and cost; `fopso_gwo_v1` are the runs of\n');
+out('FOPSO-GWO''s first settings, which plain PSO beat on the tracking costs. The final settings\n');
+out('were chosen on separate development seeds (`hybrid_fopso_gwo.m`). The last column is the\n');
+out('mean cost of the swarm''s current positions over the last 25 iterations: unstable\n');
+out('candidates score 1e3-2e3, so a large value means the swarm is still scattered (or thrown\n');
+out('about), a value near the best cost that it has collapsed onto one point.\n');
 for c = unique({abl.cost})
     out('\nCost `%s`:\n\n', c{1});
     out('| Optimiser | runs | best | median | mean | worst | swarm, last 25 iterations |\n');

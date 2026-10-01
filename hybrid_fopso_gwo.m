@@ -36,35 +36,48 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %   Standard GWO lets a_g fall linearly; here it falls quadratically
 %   (gwo_power = 2), which shortens the noisy exploration phase.
 %
-%   Learning factors. The paper uses c1 = c2 = c3 = 2 for FBPA. With three
-%   attractors of that strength the swarm overshoots constantly; on the
-%   paper's four 30-D test functions (benchmark_optimizer.m, on the branch
-%   claude/pensive-ramanujan-mmu564 where this optimiser was developed) the hybrid
-%   with c = 2 and linear a_g was worse than plain FO-PSO. With
-%   c1 = c2 = c3 = 1 and the quadratic a_g it beat FO-PSO (c = 2) by roughly
-%   5-30x in final cost on all four functions, and FO-PSO itself does worse
-%   at c = 1, so the gain comes from the GWO term, not from the smaller c.
-%   The fractional memory smooths the trajectories and resists premature
-%   convergence, as in the FO-PSO part of the paper.
+%   Settings.  The defaults were chosen on the FOPID tuning problem itself,
+%   on development seeds (101-104) kept apart from the seeds of the
+%   comparison (TOOLS/COMPARE_OPTIMIZERS), against plain PSO (PSO):
+%     * Fractional order held at 0.9 (alpha_drop = 0), not falling to 0.4
+%       as in the paper's Eq. 27.  In Eq. 25 the weight on the last velocity
+%       is w - 1 + a; with a falling it drops from 0.79 to -0.20 and the
+%       total memory from 0.86 to 0.03, so the swarm loses its momentum and
+%       collapses onto one point long before the end.  With a = 0.9 the
+%       total memory follows PSO's inertia (about w - 0.04, 0.86 -> 0.36)
+%       while keeping the fractional memory of the last four velocities.
+%     * c1 = c2 = 1.5, c3 = 1: the three pulls add up to 4, PSO's
+%       c1 + c2, which is the edge of the swarm's stable region.  Adding a
+%       grey-wolf pull on top of PSO's c1 = c2 = 2 pushed the swarm past it
+%       (the more c3, the noisier); splitting the same total between the
+%       PSO terms and the wolves did best.
+%   On the development seeds, cost 'fbpa' (TOOLS/ABLATE_OPTIMIZERS has the
+%   first settings' runs): mean best cost 0.324 against PSO's 0.358; the
+%   first settings (c1 = c2 = c3 = 1, a 0.9 -> 0.4), developed on the
+%   paper's test functions (benchmark_optimizer.m on the branch
+%   claude/pensive-ramanujan-mmu564), collapsed the swarm too early on this
+%   problem.
 %
-%   Schedules, as in the paper:
+%   Schedules:
 %     w = wmax - (wmax - wmin) k / MaxIter      linearly decreasing inertia
 %         (Eq. 23 of the paper prints (wmax - wmin) k / MaxIter, which
 %          increases from 0 and is evidently a typo for the standard form)
-%     a = 0.9 - 0.5 k / MaxIter                 fractional order, Eq. 27
+%     a = alpha0 - alpha_drop k / MaxIter       fractional order (Eq. 27 has
+%                                               0.9 - 0.5 k / MaxIter)
 %
 %   Seeded particles (opts.Seeds) let the caller start from a known good
 %   point, e.g. the existing FOPID gains; since gbest never gets worse the
 %   result is then guaranteed to be at least as good as the seed.
 %
-%   Options (defaults are the paper's Sect. 4 settings except c1..c3):
+%   Options (the paper's Sect. 4 settings, except c1..c3, alpha_drop, vmax):
 %     PopSize      30          swarm size
 %     MaxIter      100         iterations
-%     c1, c2, c3   1, 1, 1     learning factors (see above)
+%     c1, c2, c3   1.5, 1.5, 1 learning factors (see above)
 %     gwo_power    2           a_g = 2 (1 - k/MaxIter)^gwo_power
 %     wmin, wmax   0.4, 0.9    inertia weight range
 %     alpha0       0.9         fractional order at k = 0
-%     alpha_drop   0.5         fractional order falls by this much by MaxIter
+%     alpha_drop   0           fractional order falls by this much by MaxIter
+%                              (the paper: 0.5; see above)
 %     alpha_hold   0           ... after being held at alpha0 for this fraction
 %                              of the run
 %     c3_ramp      false       true: the GWO coefficient grows from 0 to c3
@@ -286,8 +299,8 @@ end
 
 % ------------------------------------------------------------------------
 function opts = set_defaults(opts, nvar)
-d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1, 'c2', 1, 'c3', 1, 'gwo_power', 2, ...
-           'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0.5, 'alpha_hold', 0, ...
+d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1.5, 'c2', 1.5, 'c3', 1, 'gwo_power', 2, ...
+           'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0, 'alpha_hold', 0, ...
            'c3_ramp', false, ...
            'vmax', 0.2, 'Seeds', zeros(0, nvar), 'SeedFraction', 0.3, ...
            'SeedJitter', 0.05, 'UseParallel', false, 'Checkpoint', '', ...

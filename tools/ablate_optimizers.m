@@ -2,15 +2,21 @@ function ablate_optimizers(seeds, variants, cost)
 %ABLATE_OPTIMIZERS  Why plain PSO beats FBPA and FOPSO-GWO: one change at a time.
 %
 %   ABLATE_OPTIMIZERS()                        seeds 1-4, all variants, cost 'fbpa'
+%   (results/ablation_runs/ also holds fopso_gwo_v1 under all four costs, seeds
+%   1-4 and, for 'whole', 1-8: ablate_optimizers(1:8, 'fopso_gwo_v1', 'whole'))
 %   ABLATE_OPTIMIZERS(seeds, variants, cost)
 %
 %   Each variant is one of the three optimisers with one setting changed,
 %   run exactly like TOOLS/COMPARE_OPTIMIZERS (same budget, seed controller,
 %   initial swarms and cost):
-%     fopso_gwo_c2   FOPSO-GWO with c1 = c2 = c3 = 2 (PSO's and FBPA's), not 1
-%     fopso_c2       FO-PSO alone: FOPSO-GWO without the grey-wolf term
-%                    (c3 = 0), c1 = c2 = 2: the fractional velocity memory of
-%                    Eq. 25 against PSO's plain inertia, nothing else
+%     fopso_gwo_v1   FOPSO-GWO's first settings: c1 = c2 = c3 = 1 and the
+%                    paper's fractional order 0.9 -> 0.4 (Eq. 27); plain PSO
+%                    beat them on the tracking costs, which led to the final
+%                    settings (HYBRID_FOPSO_GWO)
+%     fopso_gwo_c2   the first settings with c1 = c2 = c3 = 2 (PSO's and FBPA's)
+%     fopso_c2       FO-PSO alone: the first settings without the grey-wolf
+%                    term (c3 = 0), c1 = c2 = 2: the fractional velocity memory
+%                    of Eq. 25 against PSO's plain inertia, nothing else
 %     fbpa_v02       FBPA with |v| <= 0.2 of each range (as PSO and FOPSO-GWO)
 %                    instead of the paper's |v| <= 1, the whole range here
 %     pso_c1         PSO with c1 = c2 = 1 (FOPSO-GWO's), not 2
@@ -21,8 +27,10 @@ function ablate_optimizers(seeds, variants, cost)
 %
 %   See also COMPARE_OPTIMIZERS, PSO, FBPA, HYBRID_FOPSO_GWO.
 
-all_variants = {'fopso_gwo_c2', 'FOPSO-GWO', struct('c1', 2, 'c2', 2, 'c3', 2)
-                'fopso_c2',     'FOPSO-GWO', struct('c1', 2, 'c2', 2, 'c3', 0)
+v1 = {'alpha0', 0.9, 'alpha_drop', 0.5};          % the first settings' fractional order
+all_variants = {'fopso_gwo_v1', 'FOPSO-GWO', struct('c1', 1, 'c2', 1, 'c3', 1, v1{:})
+                'fopso_gwo_c2', 'FOPSO-GWO', struct('c1', 2, 'c2', 2, 'c3', 2, v1{:})
+                'fopso_c2',     'FOPSO-GWO', struct('c1', 2, 'c2', 2, 'c3', 0, v1{:})
                 'fbpa_v02',     'FBPA',      struct('vmax', 0.2)
                 'pso_c1',       'PSO',       struct('c1', 1, 'c2', 1)};
 if nargin < 1 || isempty(seeds),    seeds = 1:4; end
