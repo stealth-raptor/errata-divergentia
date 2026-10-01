@@ -11,9 +11,11 @@ function results = main(mode)
 %     PID, FOPID,   the paper's three controllers, with gains identified from
 %     FBPA          its published curves (CONTROLLER_GAINS); FBPA is the
 %                   FBPA-FOPID
-%     FOPSO_GWO     the FOPID tuned by this work's FO-PSO / grey-wolf hybrid
-%                   (results/fopso_gwo_gains.mat, from TUNE_FOPID_HYBRID), when
-%                   that file exists; one gain set for both experiments
+%     PSO           the FOPID tuned by plain PSO (the paper's improved PSO) and
+%     FOPSO_GWO     by this work's FO-PSO / grey-wolf hybrid, both with the
+%                   whole-controller cost (results/pso_gains.mat and
+%                   results/fopso_gwo_gains.mat, from TUNE_FOPID_HYBRID), when
+%                   those files exist; one gain set for both experiments
 %
 %   results/summary.md compares them with the paper's Tables 3 and 4, with
 %   the same metrics recomputed from the paper's own published curves (read
@@ -53,7 +55,9 @@ if ~exist(outdir, 'dir'), mkdir(outdir); end
 
 P = robot_params();
 controllers = {'PID', 'FOPID', 'FBPA'};
-if exist(tuned_file('FOPSO_GWO'), 'file'), controllers{end+1} = 'FOPSO_GWO'; end
+for c = {'PSO', 'FOPSO_GWO'}
+    if exist(tuned_file(c{1}), 'file'), controllers{end+1} = c{1}; end %#ok<AGROW>
+end
 
 % published values: [overshoot %, adjustment time s, peak time s, sine MSE, sine torque]
 paper.PID   = [54.6 2.44 1.39 2.27e-2 3.7422e4];
@@ -74,7 +78,7 @@ end
 fprintf('Simulating %d controllers x 2 experiments (%s gains) ...\n', numel(controllers), mode);
 for i = 1:numel(controllers)
     name = controllers{i};
-    tuned = strcmp(name, 'FOPSO_GWO');
+    tuned = any(strcmp(name, {'PSO', 'FOPSO_GWO'}));
     if tuned || strcmp(mode, 'shared')
         gains.step = controller_gains(name);      % one set for both experiments
         gains.sine = gains.step;
@@ -140,6 +144,7 @@ function s = display_name(name)
 switch name
     case 'FBPA',      s = 'FBPA-FOPID';
     case 'FOPSO_GWO', s = 'FOPSO-GWO';
+    case 'PSO',       s = 'PSO-FOPID';
     otherwise,        s = name;
 end
 end
@@ -196,6 +201,13 @@ else
     out('    paper''s published curves of each controller, one set for both experiments\n');
     out('    (`controller_gains(name)`).\n');
 end
+if has('PSO')
+    T = results.PSO.tuning;
+    out('  * PSO-FOPID: the FOPID tuned by plain PSO (`pso.m`, the paper''s improved PSO,\n');
+    out('    Eqs. 23-24) exactly as FOPSO-GWO below: same budget, seed controller, cost and\n');
+    out('    initial swarms; the best of random seeds 1-8 (seed %d), as for FOPSO-GWO.\n', ...
+        T.info.options.RandomSeed);
+end
 if has('FOPSO_GWO')
     T = results.FOPSO_GWO.tuning;
     out('  * FOPSO-GWO: the FOPID tuned by this work''s FO-PSO / grey-wolf hybrid\n');
@@ -215,36 +227,61 @@ for c = {'PID', 'FOPID', 'FBPA'}
         out('| %s | This work | %s |\n', display_name(c{1}), row(f5, results.(c{1}).summary));
     end
 end
+if has('PSO')
+    out('| PSO-FOPID | This work (improved PSO) | %s |\n', row(f5, results.PSO.summary));
+end
 if has('FOPSO_GWO')
     out('| **FOPSO-GWO** | **This work (proposed)** | %s |\n', row(f5, results.FOPSO_GWO.summary, true));
 end
 out('\n');
 out('PID, FOPID, FBPA-FOPID: reproductions, with the gains that make the simulation match each\n');
-out('controller''s published curves (Sect. 6); the paper publishes no gains. The paper''s torque\n');
-out('column is not a reproducible target: it is a permutation of its own Fig. 19 and its torque\n');
-out('curves are numerical artefacts (Sect. 7; docs/audit_report.md, 3.3-3.4).\n');
+out('controller''s published curves (Sect. 6); the paper publishes no gains. PSO-FOPID and\n');
+out('FOPSO-GWO: tuned by the two optimisers with the same cost, budget and starting swarm.\n');
+out('The paper''s torque column is not a reproducible target: it is a permutation of its own\n');
+out('Fig. 19 and its torque curves are numerical artefacts (Sect. 7; docs/audit_report.md,\n');
+out('3.3-3.4).\n');
 
 % ---- 2. FOPSO-GWO against FBPA-FOPID -------------------------------------
 if has('FOPSO_GWO')
-    out('\n## 2. FOPSO-GWO against FBPA-FOPID\n\n');
+    pso_ = has('PSO');
+    if pso_
+        out('\n## 2. FOPSO-GWO against FBPA-FOPID and PSO-FOPID\n\n');
+    else
+        out('\n## 2. FOPSO-GWO against FBPA-FOPID\n\n');
+    end
     labels = [metric_names, {'ITAE step (Eq. 29)', 'ITAE sine'}];
     f7 = {'%.1f', '%.3f', '%.3f', '%.3e', '%.4g', '%.4g', '%.4g'};
     H = [results.FOPSO_GWO.summary, results.FOPSO_GWO.itae];
     F = [results.FBPA.summary, results.FBPA.itae];
     tab = [paper.FBPA NaN NaN];
     fig = [figs.FBPA.summary, figs.FBPA.itae];
-    out(['| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | ' ...
-         '**FOPSO-GWO** | vs paper table | vs this work''s FBPA-FOPID |\n']);
-    out('|---|---:|---:|---:|---:|---:|---:|\n');
+    hdr = '| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work |';
+    sep = '|---|---:|---:|---:|';
+    if pso_
+        Q = [results.PSO.summary, results.PSO.itae];
+        hdr = [hdr ' PSO-FOPID |'];  sep = [sep '---:|'];
+    end
+    hdr = [hdr ' **FOPSO-GWO** | vs paper table | vs this work''s FBPA-FOPID |'];
+    sep = [sep '---:|---:|---:|'];
+    if pso_
+        hdr = [hdr ' vs PSO-FOPID |'];  sep = [sep '---:|'];
+    end
+    out('%s\n%s\n', hdr, sep);
     for k = 1:7
-        cells = {num_or_na(f7{k}, tab(k)), num_or_na(f7{k}, fig(k)), sprintf(f7{k}, F(k)), ...
-                 ['**' sprintf(f7{k}, H(k)) '**'], change(H(k), tab(k)), change(H(k), F(k))};
+        cells = {num_or_na(f7{k}, tab(k)), num_or_na(f7{k}, fig(k)), sprintf(f7{k}, F(k))};
+        if pso_, cells{end+1} = sprintf(f7{k}, Q(k)); end %#ok<AGROW>
+        cells = [cells, {['**' sprintf(f7{k}, H(k)) '**'], change(H(k), tab(k)), change(H(k), F(k))}]; %#ok<AGROW>
+        if pso_, cells{end+1} = change(H(k), Q(k)); end %#ok<AGROW>
         out('| %s | %s |\n', labels{k}, strjoin(cells, ' | '));
     end
     out('\nOn the paper''s five metrics FOPSO-GWO is better than the paper''s FBPA-FOPID table on\n');
-    out('%d of 5, than its figures on %d of 5, and than this work''s FBPA-FOPID on %d of 5.\n', ...
+    out('%d of 5, than its figures on %d of 5, and than this work''s FBPA-FOPID on %d of 5', ...
         sum(H(1:5) < tab(1:5)), sum(H(1:5) < fig(1:5)), sum(H(1:5) < F(1:5)));
-    out('Negative changes are improvements. What the torque costs is in Sect. 3.\n');
+    if pso_
+        out(';\nthan PSO-FOPID, tuned with the same cost, on %d of 5 and both ITAEs %d of 2', ...
+            sum(H(1:5) < Q(1:5)), sum(H(6:7) < Q(6:7)));
+    end
+    out('.\nNegative changes are improvements. What the torque costs is in Sect. 3.\n');
 end
 
 % ---- 3. control effort ---------------------------------------------------
@@ -267,7 +304,7 @@ out('\n## 5. Per joint\n');
 for r = 1:size(rows, 1)
     out('\n### %s\n\n| Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |\n', rows{r,1});
     out('|---|---|---:|---:|---:|---:|---:|---:|\n');
-    for c = {'PID', 'FOPID', 'FBPA', 'FOPSO_GWO'}
+    for c = {'PID', 'FOPID', 'FBPA', 'PSO', 'FOPSO_GWO'}
         if isfield(figs, c{1})
             out('| %s | Paper figures | %s |\n', display_name(c{1}), ...
                 join_fmt(rows{r,4}, figs.(c{1}).(rows{r,2}).(rows{r,3})));
@@ -312,7 +349,7 @@ out('\n## 8. Gains\n');
 for i = 1:numel(controllers)
     c = controllers{i};
     sets = {'step', 'sine'};
-    if strcmp(mode, 'shared') || strcmp(c, 'FOPSO_GWO'), sets = {'step'}; end
+    if strcmp(mode, 'shared') || any(strcmp(c, {'PSO', 'FOPSO_GWO'})), sets = {'step'}; end
     for e = sets
         g = results.(c).gains.(e{1});
         if numel(sets) == 1
@@ -351,23 +388,38 @@ if ~any(strcmp(controllers, 'FOPSO_GWO')), return; end
 T = results.FOPSO_GWO.tuning;
 if ~isfield(T, 'fitness') || ~isfield(T.fitness, 'whole') || isempty(T.fitness.whole), return; end
 W = T.fitness.whole;
-e = results.FOPSO_GWO.effort;
+tuned = {'PSO', 'FOPSO_GWO'};
+tuned = tuned(ismember(tuned, controllers));
 scale = '';
 if W.cap_scale ~= 1, scale = sprintf(', times %g', W.cap_scale); end
-out('\nFOPSO-GWO was tuned with caps per joint: for the torque, the largest peak any of the\n');
+out('\n%s %s tuned with caps per joint: for the torque, the largest peak any of the\n', ...
+    strjoin(cellfun(@display_name, tuned, 'UniformOutput', false), ' and '), ...
+    ifelse(numel(tuned) > 1, 'were', 'was'));
 out('paper''s three controllers needs on that joint over all their identified gain sets (Nm%s);\n', scale);
 out('for the overshoot, the worst joint of the paper''s own FBPA-FOPID figures (%%):\n\n');
 out('| | J1 | J2 | J3 | J4 | J5 | J6 |\n|---|---:|---:|---:|---:|---:|---:|\n');
-rows = {'Kick', W.cap.kick, e.step.kick; 'Step after kick', W.cap.step, e.step.peak; ...
-        'Sine', W.cap.sine, e.sine.peak; ...
-        'Overshoot', W.os_cap * ones(1, 6), results.FOPSO_GWO.step_metrics.overshoot(:)'};
-within = 0;
-for r = 1:size(rows, 1)
-    out('| %s: cap | %s |\n', rows{r, 1}, join_fmt('%.4g', rows{r, 2}));
-    out('| %s: FOPSO-GWO | %s |\n', rows{r, 1}, join_fmt('%.4g', rows{r, 3}));
-    within = within + sum(rows{r, 3} <= rows{r, 2} * (1 + 1e-9));
+cats = {'Kick', W.cap.kick, @(R) R.effort.step.kick
+        'Step after kick', W.cap.step, @(R) R.effort.step.peak
+        'Sine', W.cap.sine, @(R) R.effort.sine.peak
+        'Overshoot', W.os_cap * ones(1, 6), @(R) R.step_metrics.overshoot(:)'};
+within = zeros(1, numel(tuned));
+for r = 1:size(cats, 1)
+    out('| %s: cap | %s |\n', cats{r, 1}, join_fmt('%.4g', cats{r, 2}));
+    for i = 1:numel(tuned)
+        v = cats{r, 3}(results.(tuned{i}));
+        out('| %s: %s | %s |\n', cats{r, 1}, display_name(tuned{i}), join_fmt('%.4g', v));
+        within(i) = within(i) + sum(v <= cats{r, 2} * (1 + 1e-9));
+    end
 end
-out('\nFOPSO-GWO stays within %d of the %d caps.\n', within, 6 * size(rows, 1));
+out('\n');
+for i = 1:numel(tuned)
+    out('%s stays within %d of the %d caps. ', display_name(tuned{i}), within(i), 6 * size(cats, 1));
+end
+out('\n');
+end
+
+function s = ifelse(c, a, b)
+if c, s = a; else, s = b; end
 end
 
 % ------------------------------------------------------------------------

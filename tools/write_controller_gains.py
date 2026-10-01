@@ -51,8 +51,8 @@ if __name__ == '__main__':
 %
 %   gains = CONTROLLER_GAINS(controller)              one gain set for both experiments
 %   gains = CONTROLLER_GAINS(controller, experiment)  gain set for one experiment
-%     controller  'PID' (lambda = mu = 1), 'FOPID', 'FBPA' (the FBPA-FOPID)
-%                 or 'FOPSO_GWO'
+%     controller  'PID' (lambda = mu = 1), 'FOPID', 'FBPA' (the FBPA-FOPID),
+%                 'PSO' (the PSO-FOPID) or 'FOPSO_GWO'
 %     experiment  'step', 'sine', or 'shared' (the default)
 %
 %   Each field is 6x1, one entry per joint.  The paper publishes no gains.
@@ -73,8 +73,10 @@ if __name__ == '__main__':
 %                 closely (docs/audit_report.md, 4.3).  MAIN uses these by
 %                 default.
 %
-%   'FOPSO_GWO'   the FOPID tuned by this work's FO-PSO / grey-wolf hybrid
-%                 (TUNE_FOPID_HYBRID), read from results/fopso_gwo_gains.mat;
+%   'FOPSO_GWO'   the FOPID tuned by this work's FO-PSO / grey-wolf hybrid, and
+%   'PSO'         by plain PSO (the paper's improved PSO), both with the same
+%                 whole-controller cost (TUNE_FOPID_HYBRID), read from
+%                 results/fopso_gwo_gains.mat and results/pso_gains.mat;
 %                 one gain set for both experiments, so EXPERIMENT is ignored.
 %                 (FBPA re-run as an optimiser, TUNE_FOPID_HYBRID with
 %                 Optimizer 'FBPA', writes results/fbpa_gains.mat; that is not
@@ -84,7 +86,7 @@ if __name__ == '__main__':
 %   See also FOPID_CONTROLLER, ROBOT_PARAMS, MAIN, TUNE_FOPID_HYBRID.
 
 if nargin < 2, experiment = 'shared'; end
-if strcmpi(controller, 'FOPSO_GWO')
+if any(strcmpi(controller, {{'FOPSO_GWO', 'PSO'}}))
     file = tuned_file(controller);
     if ~exist(file, 'file')
         error('controller_gains:untuned', 'no tuned gains in %s; run tune_fopid_hybrid first', file);

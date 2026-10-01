@@ -15,8 +15,10 @@ P = robot_params();
 sets = {'PID', 'shared'; 'PID', 'step'; 'PID', 'sine'; ...
         'FOPID', 'shared'; 'FOPID', 'step'; 'FOPID', 'sine'; ...
         'FBPA', 'shared'; 'FBPA', 'step'; 'FBPA', 'sine'};
-if exist(fullfile('results', 'fopso_gwo_gains.mat'), 'file')
-    sets(end+1, :) = {'FOPSO_GWO', 'shared'};
+for c = {'PSO', 'FOPSO_GWO'}
+    if exist(fullfile('results', [lower(c{1}) '_gains.mat']), 'file')
+        sets(end+1, :) = {c{1}, 'shared'}; %#ok<AGROW>
+    end
 end
 worst_q = 0;  worst_u = 0;  t_m = 0;  t_c = 0;
 for i = 1:size(sets, 1)

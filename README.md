@@ -30,7 +30,8 @@ This branch (`brand-new-day`) is the final code. It combines
 ```
 octave --eval build_mex             # once: compiles the C simulation (about 1000x faster)
 octave --eval "tune_fopid_hybrid(struct('Fitness', 'whole', 'RandomSeed', 2))"   # FOPSO-GWO, ~6 min
-octave --eval main                  # all four controllers -> results/
+octave --eval "tune_fopid_hybrid(struct('Optimizer', 'PSO', 'Fitness', 'whole', 'RandomSeed', 4))"   # PSO-FOPID, ~6 min
+octave --eval main                  # all five controllers -> results/
 ```
 
 Optional:
@@ -81,8 +82,8 @@ octave --eval "addpath tools; check_mex"         # compiled simulation == .m loo
 | `convergence.png` | (not in the paper) | tuning the FOPID: best cost against cost evaluations, FBPA and FOPSO-GWO, one panel per cost |
 
 Colours are the paper's own: reference ("dir") red, PID green, FOPID blue, FBPA-FOPID black.
-In the sine error panels and in Fig 19 the paper draws FOPID in red, which is kept. FOPSO-GWO
-is magenta. All signals are logged every 0.01 s, as in the paper.
+In the sine error panels and in Fig 19 the paper draws FOPID in red, which is kept. PSO-FOPID
+is cyan and FOPSO-GWO magenta. All signals are logged every 0.01 s, as in the paper.
 
 ## Result: the paper's Tables 3 and 4 against this work
 
@@ -94,11 +95,15 @@ is magenta. All signals are logged every 0.01 s, as in the paper.
 | FOPID | This work | 33.2 | 1.95 | 1.42 | 5.5e-3 | 1.03e4 |
 | FBPA-FOPID | Paper | 22.1 | 1.43 | 1.09 | 3.7e-3 | 2.32e4 |
 | FBPA-FOPID | This work | 19.8 | 1.45 | 1.25 | 2.3e-3 | 1.01e4 |
+| PSO-FOPID | This work (improved PSO) | 17.8 | 1.33 | 1.11 | 2.7e-3 | 1.01e4 |
 | **FOPSO-GWO** | **This work (proposed)** | **18.6** | **1.29** | **1.10** | **1.3e-3** | **9951** |
 
 * **PID, FOPID, FBPA-FOPID:** reproductions of the paper's three controllers, with the gains
   that make the simulation match each controller's published curves (below). The paper
   publishes no gains.
+* **PSO-FOPID and FOPSO-GWO:** the FOPID tuned by plain PSO (the paper's improved PSO,
+  Eqs. 23–24) and by FOPSO-GWO in exactly the same way: the same whole-controller cost, budget
+  (30 × 100), seed controller and starting swarms, each the best of random seeds 1–8.
 * **FBPA-FOPID's peak time:** the paper's table says 1.09 s, but its own FBPA-FOPID curves
   peak at 1.26 s on average (summary.md, Sect. 7). The reproduction follows the curves (1.25 s).
 * **Torque:** the paper's torque column cannot be reproduced. It is a permutation of its own
@@ -109,16 +114,17 @@ is magenta. All signals are logged every 0.01 s, as in the paper.
 
 FOPSO-GWO re-tunes the FOPID as a whole controller (`Fitness = 'whole'`): better tracking than
 the paper's FBPA-FOPID, **within the torque the paper's own controllers use**, joint by joint,
-and without one joint hiding behind the averages.
+and without one joint hiding behind the averages. PSO-FOPID is the same tuning done by plain
+PSO.
 
-| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | **FOPSO-GWO** | vs table | vs this work's FBPA-FOPID |
-|---|---:|---:|---:|---:|---:|---:|
-| Overshoot (%) | 22.1 | 21.2 | 19.8 | **18.6** | −16 % | −6 % |
-| Adjustment time (s) | 1.43 | 1.52 | 1.45 | **1.29** | −10 % | −11 % |
-| Peak time (s) | 1.09 | 1.26 | 1.25 | **1.10** | +0.9 % | −12 % |
-| Sine MSE (rad²) | 3.7e-3 | 3.7e-3 | 2.3e-3 | **1.3e-3** | −65 % | −42 % |
-| Sine Σ\|τ\| (Nm) | 2.32e4 | 2.57e4 | 1.01e4 | **9951** | −57 % | −2 % |
-| ITAE step / sine (Eq. 29) | n/a | 1.19 / 3.56 | 1.16 / 2.44 | **0.84 / 1.69** | n/a | −28 % / −31 % |
+| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | PSO-FOPID | **FOPSO-GWO** | vs table | vs this work's FBPA-FOPID | vs PSO-FOPID |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Overshoot (%) | 22.1 | 21.2 | 19.8 | 17.8 | **18.6** | −16 % | −6 % | +4 % |
+| Adjustment time (s) | 1.43 | 1.52 | 1.45 | 1.33 | **1.29** | −10 % | −11 % | −3 % |
+| Peak time (s) | 1.09 | 1.26 | 1.25 | 1.11 | **1.10** | +0.9 % | −12 % | −1 % |
+| Sine MSE (rad²) | 3.7e-3 | 3.7e-3 | 2.3e-3 | 2.7e-3 | **1.3e-3** | −65 % | −42 % | −52 % |
+| Sine Σ\|τ\| (Nm) | 2.32e4 | 2.57e4 | 1.01e4 | 1.01e4 | **9951** | −57 % | −2 % | −2 % |
+| ITAE step / sine (Eq. 29) | n/a | 1.19 / 3.56 | 1.16 / 2.44 | 1.05 / 2.27 | **0.84 / 1.69** | n/a | −28 % / −31 % | −20 % / −26 % |
 
 **Torque.** Peaks are the largest joint; sums and total variations (Σ\|τ(k+1) − τ(k)\| at
 1 kHz, which grows with chattering) are averaged over the joints. The first 50 ms after the step
@@ -130,15 +136,20 @@ listed on its own.
 | PID | 2.1e5 | 1078 | 350 | 935 | 5055 |
 | FOPID | 7.9e5 | 1524 | 1902 | 922 | 22840 |
 | FBPA-FOPID | 8.2e4 | 1495 | 495 | 935 | 1445 |
-| **FOPSO-GWO** | **8.1e4** | **1476** | **365** | 1175 | **598** |
+| PSO-FOPID | 1.9e5 | 856 | 291 | 795 | 643 |
+| **FOPSO-GWO** | 8.1e4 | 1476 | 365 | 1175 | 598 |
 
 * **Within the paper's torque, on every joint.** FOPSO-GWO stays within all 24 caps: on every
   joint, its peak torque in the kick, in the rest of the step and in the sine run is no larger
   than the largest any of the paper's three controllers needs there, and no joint overshoots
   more than the paper's FBPA-FOPID does on its worst joint (33 %). Its sine peak is a fifth
   of FOPID's and below FBPA-FOPID's, and its sine torque varies 2.4× less than FBPA-FOPID's.
+  PSO-FOPID also stays within all 24 caps, with lower peaks after the kick (856 against
+  1476 Nm) and in the sine run, but a kick 2.3× larger.
 * **Tracking.** It beats this work's FBPA-FOPID and the paper's own FBPA-FOPID curves on all
-  five metrics and both ITAEs, and the paper's table on four of the five.
+  five metrics and both ITAEs, and the paper's table on four of the five. Against PSO-FOPID,
+  tuned with the same cost, it is better on four of the five and both ITAEs (sine MSE half,
+  ITAE 20–26 % lower); PSO-FOPID overshoots less (17.8 against 18.6 %).
 * **Peak time** is the exception, 1.10 s against the table's 1.09 s. The table's 1.09 s
   contradicts the paper's own curves (1.26 s), and within the paper's torque it is out of
   reach. In all eight seeds tried (best mean 1.100 s, the others 1.125–1.155 s), joint 2, the
@@ -373,7 +384,7 @@ main.m                      runner: all controllers x both experiments, tables a
 ├── robot_params.m          arm parameters: Table 2 of the paper, UR DH, COM / gravity / friction options
 ├── robot_dynamics.m        M(q) qdd + C(q,qd) qd + G(q) + tau_f = tau  (Eq. 21), batched Newton-Euler
 │
-├── controller_gains.m      gains identified from the published curves (+ FBPA, FOPSO-GWO from results/)
+├── controller_gains.m      gains identified from the published curves (+ PSO-FOPID, FOPSO-GWO from results/)
 ├── fopid_controller.m      builds the six joint controllers
 ├── fopid_update.m          one control step: u = Kp e + Ki D^-lambda e + Kd D^mu e  (Eq. 9)
 ├── fractional_operator.m   Oustaloup approximation of s^alpha, discretised
