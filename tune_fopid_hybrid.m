@@ -32,6 +32,20 @@ function tuned = tune_fopid_hybrid(opts)
 %     'itae'       the paper's own fitness: step ITAE only (Eq. 29); the
 %                  default for FBPA.  Candidates must still complete the
 %                  sine run, since the paper uses the same gains for it
+%     'whole'      a whole controller: tracking AND the torque it takes
+%                  (FOPID_FITNESS, whole-controller cost).  Both ITAEs and
+%                  four paper metrics are scored against the paper's
+%                  FBPA-FOPID (its table, and for the ITAEs its reproduction
+%                  with the identified gains), with no extra credit beyond
+%                  twice as good (floor 0.5); the sum and total variation of
+%                  the torque in both runs are scored against that
+%                  reproduction; and on every joint the peak torque, in the
+%                  sine run, in the step run after the derivative kick, and
+%                  in the kick itself, must stay within the largest the
+%                  paper's own controllers need (PID, FOPID and FBPA-FOPID,
+%                  all identified gain sets).  Every paper metric must still
+%                  beat the paper's FBPA-FOPID (regret 2).  Implies
+%                  Target 'FBPA'.
 %
 %   The paper's FBPA-FOPID, reproduced with the paper's optimiser and fitness:
 %     tune_fopid_hybrid(struct('Optimizer', 'FBPA'))
@@ -75,8 +89,8 @@ function tuned = tune_fopid_hybrid(opts)
 %
 %   Options (besides those of HYBRID_FOPSO_GWO or FBPA, which are passed through):
 %     Optimizer    'FOPSO-GWO' (default) or 'FBPA'
-%     Fitness      'composite', 'torque' or 'itae'; default 'composite' for
-%                  FOPSO-GWO and 'itae' (the paper's) for FBPA
+%     Fitness      'composite', 'torque', 'itae' or 'whole'; default
+%                  'composite' for FOPSO-GWO and 'itae' (the paper's) for FBPA
 %     Weights      1x8 weights of FOPID_FITNESS (overrides Fitness)
 %     Target       'baseline' (default), 'FBPA' or 'FBPA-all', see above
 %     Robust       penalise numerically ill-conditioned closed loops (see
@@ -117,11 +131,18 @@ switch lower(opts.Fitness)
     case 'composite', fit.weights = [1 1 1 1 0.5 1 1 0];  fit.regret = opts.Regret;
     case 'torque',    fit.weights = [1 1 1 1 0.5 1 3 2];  fit.regret = opts.Regret;
     case 'itae',      fit.weights = [1 0 0 0 0 0 0 0];    fit.regret = 0;
+    case 'whole',     fit.weights = [0.5 0.5 1 1 1 1 0 0];  fit.regret = opts.Regret;
     otherwise, error('tune_fopid_hybrid:fitness', 'unknown fitness ''%s''', opts.Fitness);
 end
 fit.abort_err = 5;
 fit.time_offset = 0;
 fit.robust = opts.Robust;
+fit.whole = [];
+if strcmpi(opts.Fitness, 'whole')
+    opts.Target = 'FBPA';
+    fprintf('Measuring the torque of the paper''s controllers (caps and references) ...\n');
+    fit.whole = whole_references(P);
+end
 switch upper(opts.Target)
     case 'BASELINE'
     case {'FBPA', 'FBPA-ALL'}
@@ -159,6 +180,10 @@ switch upper(opts.Target)
         ref_name = 'FBPA target';
 end
 
+if ~isempty(fit.whole)
+    ref(1:2) = fit.whole.itae;                   % ITAE of the reproduced FBPA-FOPID
+end
+
 cost = @(z) fopid_fitness(P, decode(z, B), ref, fit);
 
 if isempty(opts.Start), opts.Start = {opts.Baseline}; end
@@ -177,7 +202,7 @@ opt_opts = rmfield(opts, {'Optimizer', 'Fitness', 'Weights', 'Regret', 'Baseline
 opt_opts.Seeds = min(max(z_seed, 0), 1);
 % a checkpoint is only resumed if it was written for the same cost function
 opt_opts.CheckpointTag = {opts.Optimizer, fit.weights, fit.regret, fit.time_offset, fit.robust, ...
-                          B.lo, B.hi, ref, opts.Start};
+                          B.lo, B.hi, ref, opts.Start, fit.whole};
 
 fprintf('%s: %d particles x %d iterations, 30 parameters, fitness ''%s'', start %s\n', ...
         opts.Optimizer, opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness, strjoin(opts.Start, ' + '));
@@ -188,7 +213,7 @@ else
 end
 
 gains = decode(z_best, B);
-[J, raw] = fopid_fitness(P, gains, ref, fit);
+[J, raw, effort] = fopid_fitness(P, gains, ref, fit);
 fprintf('\nBest cost %.4f (%s = 1)\n', J, ref_name);
 print_comparison(opts.Optimizer, opts.Baseline, base_raw, raw);
 if ~strcmpi(opts.Target, 'baseline')
@@ -204,6 +229,7 @@ tuned.baseline = base_raw;
 tuned.reference = ref;
 tuned.target   = opts.Target;
 tuned.info     = info;
+tuned.effort   = effort;
 tuned.fitness  = fit;
 tuned.bounds   = B;
 if exist(opts.OutFile, 'file')
@@ -217,6 +243,51 @@ if ~isempty(opt_opts.Checkpoint) && exist(opt_opts.Checkpoint, 'file')
     delete(opt_opts.Checkpoint);     % finished: the next call starts afresh
 end
 fprintf('\nSaved the tuned gains to %s; run MAIN to compare and plot.\n', opts.OutFile);
+end
+
+% ------------------------------------------------------------------------
+function W = whole_references(P)
+%WHOLE_REFERENCES  Torque caps and references of the whole-controller cost.
+%   Caps: on each joint, the largest peak torque any reproduction of the
+%   paper's controllers needs (PID, FOPID and FBPA-FOPID, with every
+%   identified gain set the experiment uses: its own and the shared one),
+%   in the derivative kick of the step, in the rest of the step run and in
+%   the sine run.  References: the effort and ITAE of the reproduced
+%   FBPA-FOPID (gains identified from each experiment's curves).
+o = struct('log_dt', 1e-3);
+W.floor = 0.5;
+W.weights = [1 1 1 1];          % sum |tau| step, sine; total variation step, sine
+W.cap_penalty = 10;
+W.cap = struct('kick', zeros(1, 6), 'step', zeros(1, 6), 'sine', zeros(1, 6));
+for c = {'PID', 'FOPID', 'FBPA'}
+    for set = {'step', 'sine', 'shared'}
+        g = controller_gains(c{1}, set{1});
+        if ~strcmp(set{1}, 'sine')
+            e = control_effort(simulate_closed_loop(P, g, 'step', o), 'step');
+            W.cap.kick = max(W.cap.kick, e.kick);
+            W.cap.step = max(W.cap.step, e.peak);
+        end
+        if ~strcmp(set{1}, 'step')
+            e = control_effort(simulate_closed_loop(P, g, 'sine', o), 'sine');
+            W.cap.sine = max(W.cap.sine, e.peak);
+        end
+    end
+end
+step = simulate_closed_loop(P, controller_gains('FBPA', 'step'), 'step', o);
+sine = simulate_closed_loop(P, controller_gains('FBPA', 'sine'), 'sine', o);
+es = control_effort(step, 'step');
+en = control_effort(sine, 'sine');
+W.ref = struct('step_sum', mean(es.sum), 'sine_sum', mean(en.sum), ...
+               'step_tv', mean(es.tv), 'sine_tv', mean(en.tv));
+W.itae = [itae_grid(step), itae_grid(sine)];
+fprintf('  peak torque caps per joint [Nm]: kick %s, step %s, sine %s\n', ...
+        mat2str(W.cap.kick, 3), mat2str(W.cap.step, 3), mat2str(W.cap.sine, 3));
+end
+
+function v = itae_grid(out)
+%ITAE_GRID  ITAE (Eq. 29) on the paper's 0.01 s grid of a run logged faster.
+k = 1:round(0.01 / (out.t(2) - out.t(1))):numel(out.t);
+v = trapz(out.t(k), out.t(k) .* sum(abs(out.r(:, k) - out.q(:, k)), 1));
 end
 
 % ------------------------------------------------------------------------

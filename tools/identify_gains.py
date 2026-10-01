@@ -9,6 +9,8 @@ instants.  The same gain set has to reproduce the step AND the sine figures.
 
   PID    18 unknowns  Kp, Ki, Kd per joint            (lambda = mu = 1)
   FOPID  30 unknowns  Kp, Ki, Kd, lambda, mu per joint (paper, Sect. 3)
+  FBPA   the same 30 unknowns, fitted to the FBPA-FOPID curves (the
+         paper's FOPID re-tuned by its FBPA optimiser)
 
 Search: block-coordinate CMA-ES (one joint at a time, coupled simulation),
 then CMA-ES over all gains, then trust-region least squares.
@@ -16,6 +18,7 @@ then CMA-ES over all gains, then trust-region least squares.
 Usage:
   python3 tools/identify_gains.py PID   --lengths table2 --com distal --out fit_PID.json
   python3 tools/identify_gains.py FOPID --lengths table2 --com distal --out fit_FOPID.json
+  python3 tools/identify_gains.py FBPA --x0 data/identification/FOPID_shared.json --robust --out fit_FBPA.json
 """
 import argparse, json, os, sys, time
 from multiprocessing import Pool
@@ -45,7 +48,7 @@ class Problem:
         self.data = {k: D.positions(k, controller) for k in ('step', 'sine')}
         self.w = dict(step=weights[0], sine=weights[1])
         self.mask = dict(step=D.TG >= t_from[0], sine=D.TG >= t_from[1])
-        self.frac = controller == 'FOPID'
+        self.frac = controller in ('FOPID', 'FBPA')
         self.n = 30 if self.frac else 18
 
     # parameter vector <-> gains
@@ -218,7 +221,7 @@ def to_json(prob, x, meta, fitted=None):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('controller', choices=['PID', 'FOPID'])
+    ap.add_argument('controller', choices=['PID', 'FOPID', 'FBPA'])
     ap.add_argument('--lengths', default='table2', choices=['table2', 'ur5'])
     ap.add_argument('--com', default='distal', choices=['distal', 'middle', 'proximal'])
     ap.add_argument('--g', type=float, default=0.0)
@@ -239,7 +242,10 @@ if __name__ == '__main__':
     w = tuple(float(v) for v in a.weights.split(','))
     prob, x = identify(a.controller, plant, x0=x0, cycles=a.cycles, full_iter=a.full_iter, seed=a.seed,
                        lsq=not a.no_lsq, weights=w, robust=a.robust, robust_tol=a.robust_tol)
-    res = to_json(Problem(a.controller, plant), x, dict(lengths=a.lengths, com=a.com, g=a.g, seed=a.seed, weights=w), fitted=prob)
+    meta = dict(lengths=a.lengths, com=a.com, g=a.g, seed=a.seed, weights=w)
+    if w[0] == 0 or w[1] == 0:
+        meta['fitted_on'] = 'step' if w[1] == 0 else 'sine'
+    res = to_json(Problem(a.controller, plant), x, meta, fitted=prob)
     json.dump(res, open(a.out, 'w'), indent=1)
     print(json.dumps({k: res[k] for k in ('rms_step', 'rms_sine', 'rms_total')}))
     print(json.dumps(res['gains']))

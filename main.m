@@ -1,29 +1,28 @@
 function results = main(mode)
 %MAIN  Reproduce the paper's results and compare FOPSO-GWO with its FBPA-FOPID.
 %
-%   results = MAIN()           PID / FOPID gains fitted to each experiment separately
-%   results = MAIN('shared')   one PID / FOPID gain set for both experiments
+%   results = MAIN()           PID / FOPID / FBPA-FOPID gains fitted to each experiment
+%   results = MAIN('shared')   one gain set per controller for both experiments
 %
 %   Runs every controller through both experiments of the paper,
 %     step response : 1 rad on every joint at t = 1 s
 %     sine tracking : sin(1.5 t) rad on every joint
 %   The controllers are
-%     PID, FOPID    gains identified from the paper's published curves
-%                   (CONTROLLER_GAINS)
-%     FBPA          the FOPID tuned by the paper's FBPA, re-implemented with
-%                   the paper's settings and fitness (results/fbpa_gains.mat,
-%                   from TUNE_FOPID_HYBRID with Optimizer 'FBPA')
+%     PID, FOPID,   the paper's three controllers, with gains identified from
+%     FBPA          its published curves (CONTROLLER_GAINS); FBPA is the
+%                   FBPA-FOPID
 %     FOPSO_GWO     the FOPID tuned by this work's FO-PSO / grey-wolf hybrid
-%                   (results/fopso_gwo_gains.mat, from TUNE_FOPID_HYBRID)
-%   the last two only when their gain files exist; both use one gain set for
-%   both experiments.
+%                   (results/fopso_gwo_gains.mat, from TUNE_FOPID_HYBRID), when
+%                   that file exists; one gain set for both experiments
 %
 %   results/summary.md compares them with the paper's Tables 3 and 4, with
 %   the same metrics recomputed from the paper's own published curves (read
 %   from the vector graphics of the PDF, see PAPER_CURVES), and with the
-%   published curves themselves.  If TOOLS/COMPARE_OPTIMIZERS has been run
-%   (results/optimizer_runs/), it also compares FBPA and FOPSO-GWO under the
-%   same costs, seeds and budget, and plots their convergence.
+%   published curves themselves, and reports the torque each controller
+%   needs (CONTROL_EFFORT).  If TOOLS/COMPARE_OPTIMIZERS has been run
+%   (results/optimizer_runs/), it also compares the FBPA and FOPSO-GWO
+%   optimisers under the same costs, seeds and budget, and plots their
+%   convergence.
 %
 %   Saves results/summary.md, the paper's figure set (Figs 6-19), two
 %   comparison figures, convergence.png and results/simulation_results.mat;
@@ -39,7 +38,8 @@ function results = main(mode)
 %     PERFORMANCE_METRICS  -> the metrics defined in the paper
 %     PAPER_CURVES         -> the paper's own published curves
 %     PLOT_PAPER_FIGURES   -> the figures, in the paper's own layout
-%     TUNE_FOPID_HYBRID    -> (separately) the FBPA and FOPSO-GWO gains
+%     CONTROL_EFFORT       -> the torque each controller needs
+%     TUNE_FOPID_HYBRID    -> (separately) the FOPSO-GWO gains
 
 if nargin < 1, mode = 'separate'; end
 if ~any(strcmp(mode, {'separate', 'shared'}))
@@ -52,10 +52,8 @@ if strcmp(mode, 'shared'), outdir = fullfile('results', 'shared_gains'); end
 if ~exist(outdir, 'dir'), mkdir(outdir); end
 
 P = robot_params();
-controllers = {'PID', 'FOPID'};
-for c = {'FBPA', 'FOPSO_GWO'}
-    if exist(tuned_file(c{1}), 'file'), controllers{end+1} = c{1}; end %#ok<AGROW>
-end
+controllers = {'PID', 'FOPID', 'FBPA'};
+if exist(tuned_file('FOPSO_GWO'), 'file'), controllers{end+1} = 'FOPSO_GWO'; end
 
 % published values: [overshoot %, adjustment time s, peak time s, sine MSE, sine torque]
 paper.PID   = [54.6 2.44 1.39 2.27e-2 3.7422e4];
@@ -76,7 +74,7 @@ end
 fprintf('Simulating %d controllers x 2 experiments (%s gains) ...\n', numel(controllers), mode);
 for i = 1:numel(controllers)
     name = controllers{i};
-    tuned = any(strcmp(name, {'FBPA', 'FOPSO_GWO'}));
+    tuned = strcmp(name, 'FOPSO_GWO');
     if tuned || strcmp(mode, 'shared')
         gains.step = controller_gains(name);      % one set for both experiments
         gains.sine = gains.step;
@@ -97,6 +95,9 @@ for i = 1:numel(controllers)
     R.summary = [R.step_metrics.mean, R.sine_metrics.mean];
     R.itae = [itae(step_run), itae(sine_run)];
     R.peak_torque = mean(max(abs(step_run.u), [], 2));   % as in FOPID_FITNESS
+    fast = struct('log_dt', 1e-3);                       % torque at the control rate
+    R.effort.step = control_effort(simulate_closed_loop(P, gains.step, 'step', fast), 'step');
+    R.effort.sine = control_effort(simulate_closed_loop(P, gains.sine, 'sine', fast), 'sine');
     if isfield(curves, name)                             % PID, FOPID and FBPA-FOPID
         R.curve_rms.step = sqrt(mean((step_run.q - curves.(name).step.q).^2, 2));
         R.curve_rms.sine = sqrt(mean((sine_run.q - curves.(name).sine.q).^2, 2));
@@ -187,25 +188,20 @@ out('  time, all from t = 0; sine MSE and sum of |tau|; each averaged over the s
 out('  computed on the paper''s 0.01 s logging grid.\n');
 out('* **Controllers:**\n');
 if strcmp(mode, 'separate')
-    out('  * PID and FOPID: gains identified from the paper''s published curves, one set per\n');
-    out('    experiment (`controller_gains(name, experiment)`).\n');
+    out('  * PID, FOPID and FBPA-FOPID, the paper''s three controllers: gains identified from the\n');
+    out('    paper''s published curves of each controller, one set per experiment\n');
+    out('    (`controller_gains(name, experiment)`).\n');
 else
-    out('  * PID and FOPID: gains identified from the paper''s published curves, one set for\n');
-    out('    both experiments (`controller_gains(name)`).\n');
-end
-if has('FBPA')
-    T = results.FBPA.tuning;
-    out('  * FBPA-FOPID: the FOPID tuned by the paper''s FBPA (`fbpa.m`), re-implemented with the\n');
-    out('    paper''s settings; %s (random seed %d).\n', fitness_text(T), T.info.options.RandomSeed);
+    out('  * PID, FOPID and FBPA-FOPID, the paper''s three controllers: gains identified from the\n');
+    out('    paper''s published curves of each controller, one set for both experiments\n');
+    out('    (`controller_gains(name)`).\n');
 end
 if has('FOPSO_GWO')
     T = results.FOPSO_GWO.tuning;
     out('  * FOPSO-GWO: the FOPID tuned by this work''s FO-PSO / grey-wolf hybrid\n');
-    out('    (`hybrid_fopso_gwo.m`); %s (random seed %d).\n', fitness_text(T), T.info.options.RandomSeed);
-end
-if has('FBPA') || has('FOPSO_GWO')
-    out('  * Both optimisers: 30 particles x 100 iterations (the paper''s budget), the same search\n');
-    out('    space, seeded with the identified FOPID; one gain set for both experiments.\n');
+    out('    (`hybrid_fopso_gwo.m`), 30 particles x 100 iterations (the paper''s FBPA budget),\n');
+    out('    seeded with the identified FOPID, one gain set for both experiments; %s\n', fitness_text(T));
+    out('    (random seed %d).\n', T.info.options.RandomSeed);
 end
 out('\n');
 
@@ -223,70 +219,51 @@ if has('FOPSO_GWO')
     out('| **FOPSO-GWO** | **This work (proposed)** | %s |\n', row(f5, results.FOPSO_GWO.summary, true));
 end
 out('\n');
-out('PID, FOPID: this work reproduces the paper''s controllers with gains identified from its\n');
-out('curves. FBPA-FOPID: the paper''s optimiser re-run on the same arm; its gains are not the\n');
-out('authors'' (the paper publishes none). The paper''s torque column is not a reproducible\n');
-out('target: it is a permutation of its own Fig. 19 and its torque curves are numerical\n');
-out('artefacts (Sect. 6 below; docs/audit_report.md, 3.3-3.4).\n');
+out('PID, FOPID, FBPA-FOPID: reproductions, with the gains that make the simulation match each\n');
+out('controller''s published curves (Sect. 6); the paper publishes no gains. The paper''s torque\n');
+out('column is not a reproducible target: it is a permutation of its own Fig. 19 and its torque\n');
+out('curves are numerical artefacts (Sect. 7; docs/audit_report.md, 3.3-3.4).\n');
 
 % ---- 2. FOPSO-GWO against FBPA-FOPID -------------------------------------
 if has('FOPSO_GWO')
     out('\n## 2. FOPSO-GWO against FBPA-FOPID\n\n');
-    labels = [{'ITAE step (Eq. 29)', 'ITAE sine'}, metric_names, {'Step peak torque (Nm)'}];
-    f8 = [{'%.4g', '%.4g'}, {'%.1f', '%.3f', '%.3f', '%.3e', '%.4g'}, {'%.4g'}];
-    H = [results.FOPSO_GWO.itae, results.FOPSO_GWO.summary, results.FOPSO_GWO.peak_torque];
-    tab = [NaN NaN paper.FBPA NaN];
-    fig = [figs.FBPA.itae, figs.FBPA.summary, NaN];
-    hdr = '| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures |';
-    sep = '|---|---:|---:|';
-    if has('FBPA')
-        F = [results.FBPA.itae, results.FBPA.summary, results.FBPA.peak_torque];
-        hdr = [hdr ' FBPA-FOPID: this work |'];
-        sep = [sep '---:|'];
-    end
-    hdr = [hdr ' **FOPSO-GWO** | vs paper FBPA-FOPID |'];
-    sep = [sep '---:|---:|'];
-    if has('FBPA')
-        hdr = [hdr ' vs FBPA-FOPID (this work) |'];
-        sep = [sep '---:|'];
-    end
-    out('%s\n%s\n', hdr, sep);
-    wins_tab = 0;  wins_own = 0;
-    for k = 1:8
-        cells = {num_or_na(f8{k}, tab(k)), num_or_na(f8{k}, fig(k))};
-        if has('FBPA'), cells{end+1} = sprintf(f8{k}, F(k)); end %#ok<AGROW>
-        cells{end+1} = ['**' sprintf(f8{k}, H(k)) '**']; %#ok<AGROW>
-        cells{end+1} = change(H(k), tab(k)); %#ok<AGROW>
-        if has('FBPA'), cells{end+1} = change(H(k), F(k)); end %#ok<AGROW>
+    labels = [metric_names, {'ITAE step (Eq. 29)', 'ITAE sine'}];
+    f7 = {'%.1f', '%.3f', '%.3f', '%.3e', '%.4g', '%.4g', '%.4g'};
+    H = [results.FOPSO_GWO.summary, results.FOPSO_GWO.itae];
+    F = [results.FBPA.summary, results.FBPA.itae];
+    tab = [paper.FBPA NaN NaN];
+    fig = [figs.FBPA.summary, figs.FBPA.itae];
+    out(['| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | ' ...
+         '**FOPSO-GWO** | vs paper table | vs this work''s FBPA-FOPID |\n']);
+    out('|---|---:|---:|---:|---:|---:|---:|\n');
+    for k = 1:7
+        cells = {num_or_na(f7{k}, tab(k)), num_or_na(f7{k}, fig(k)), sprintf(f7{k}, F(k)), ...
+                 ['**' sprintf(f7{k}, H(k)) '**'], change(H(k), tab(k)), change(H(k), F(k))};
         out('| %s | %s |\n', labels{k}, strjoin(cells, ' | '));
-        if k >= 3 && k <= 7
-            wins_tab = wins_tab + (H(k) < tab(k));
-            if has('FBPA'), wins_own = wins_own + (H(k) < F(k)); end
-        end
     end
-    out('\nOn the paper''s five metrics FOPSO-GWO is better than the paper''s FBPA-FOPID on %d of 5', wins_tab);
-    if has('FBPA')
-        out(',\nand better than FBPA-FOPID re-run on this arm on %d of 5', wins_own);
-    end
-    out('. Negative changes are improvements.\n');
-    out('The step peak torque (max |tau| at the step instant, averaged over the joints) is not one\n');
-    out('of the paper''s metrics.\n');
+    out('\nOn the paper''s five metrics FOPSO-GWO is better than the paper''s FBPA-FOPID table on\n');
+    out('%d of 5, than its figures on %d of 5, and than this work''s FBPA-FOPID on %d of 5.\n', ...
+        sum(H(1:5) < tab(1:5)), sum(H(1:5) < fig(1:5)), sum(H(1:5) < F(1:5)));
+    out('Negative changes are improvements. What the torque costs is in Sect. 3.\n');
 end
 
-% ---- 3. optimiser comparison ---------------------------------------------
+% ---- 3. control effort ---------------------------------------------------
+report_effort(out, results, controllers);
+
+% ---- 4. optimiser comparison ---------------------------------------------
 if ~isempty(runs)
     rerun = [];
     if has('FBPA'), rerun = results.FBPA.summary; end
     report_optimizers(out, runs, paper, rerun);
 end
 
-% ---- 4. per joint --------------------------------------------------------
+% ---- 5. per joint --------------------------------------------------------
 rows = {'Step overshoot (%)',        'step_metrics', 'overshoot',       '%.1f'
         'Step adjustment time (s)',  'step_metrics', 'adjustment_time', '%.2f'
         'Step peak time (s)',        'step_metrics', 'peak_time',       '%.2f'
         'Sine MSE (rad^2)',          'sine_metrics', 'mse',             '%.2e'
         'Sine sum |tau| (Nm)',       'sine_metrics', 'torque',          '%.4g'};
-out('\n## 4. Per joint\n');
+out('\n## 5. Per joint\n');
 for r = 1:size(rows, 1)
     out('\n### %s\n\n| Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |\n', rows{r,1});
     out('|---|---|---:|---:|---:|---:|---:|---:|\n');
@@ -302,11 +279,9 @@ for r = 1:size(rows, 1)
     end
 end
 
-% ---- 5. match to the published curves ------------------------------------
-out('\n## 5. Match to the published curves\n\n');
-out('rms of q (this work) - q (paper''s figure), rad. FBPA-FOPID is not fitted to the paper''s\n');
-out('curves: it is the result of re-running the optimiser, so this row measures how close an\n');
-out('independent FBPA run comes to the authors''.\n\n');
+% ---- 6. match to the published curves ------------------------------------
+out('\n## 6. Match to the published curves\n\n');
+out('rms of q (this work) - q (paper''s figure), rad.\n\n');
 out('| Controller | Experiment | J1 | J2 | J3 | J4 | J5 | J6 | mean |\n');
 out('|---|---|---:|---:|---:|---:|---:|---:|---:|\n');
 for c = {'PID', 'FOPID', 'FBPA'}
@@ -317,8 +292,8 @@ for c = {'PID', 'FOPID', 'FBPA'}
     end
 end
 
-% ---- 6. the paper's own consistency -------------------------------------
-out('\n## 6. The paper''s tables against its own figures\n\n');
+% ---- 7. the paper's own consistency -------------------------------------
+out('\n## 7. The paper''s tables against its own figures\n\n');
 out('The same metrics recomputed from the paper''s published curves (Figs 6-19, read from the\n');
 out('PDF''s vector graphics) do not fully agree with its tables.\n\n');
 out('| Controller | Source | %s |\n|---|---|---:|---:|---:|---:|---:|\n', strjoin(metric_names, ' | '));
@@ -332,12 +307,12 @@ out('FBPA / PID / FOPID values. The torque curves themselves are not outputs of 
 out('law (spikes of up to 1e9 Nm in Fig. 12), so this work''s torques, which are physically\n');
 out('consistent, are much smaller. See docs/audit_report.md, Sect. 3.\n');
 
-% ---- 7. gains ------------------------------------------------------------
-out('\n## 7. Gains\n');
+% ---- 8. gains ------------------------------------------------------------
+out('\n## 8. Gains\n');
 for i = 1:numel(controllers)
     c = controllers{i};
     sets = {'step', 'sine'};
-    if strcmp(mode, 'shared') || any(strcmp(c, {'FBPA', 'FOPSO_GWO'})), sets = {'step'}; end
+    if strcmp(mode, 'shared') || strcmp(c, 'FOPSO_GWO'), sets = {'step'}; end
     for e = sets
         g = results.(c).gains.(e{1});
         if numel(sets) == 1
@@ -355,6 +330,43 @@ fclose(fid);
 end
 
 % ------------------------------------------------------------------------
+function report_effort(out, results, controllers)
+%REPORT_EFFORT  The torque each controller needs (CONTROL_EFFORT).
+out('\n## 3. Control effort\n\n');
+out('Torque at the control rate (1 kHz), from `control_effort.m`. The first 50 ms after the step\n');
+out('are the derivative kick: the fractional derivative of the ideal 1 rad step drives every\n');
+out('controller with a D-term to 1e4-1e6 Nm there, so the kick is listed on its own and the\n');
+out('other step columns exclude it. Peaks are the largest joint; sums and total variations\n');
+out('(sum of |tau(k+1) - tau(k)|, which grows with chattering) are averaged over the joints.\n\n');
+out(['| Controller | Kick peak | Step peak after kick | Sine peak | Step sum \\|tau\\| after kick | ' ...
+     'Sine sum \\|tau\\| | Step total variation | Sine total variation |\n']);
+out('|---|---:|---:|---:|---:|---:|---:|---:|\n');
+for i = 1:numel(controllers)
+    e = results.(controllers{i}).effort;
+    out('| %s | %.3g | %.4g | %.4g | %.4g | %.4g | %.4g | %.4g |\n', display_name(controllers{i}), ...
+        max(e.step.kick), max(e.step.peak), max(e.sine.peak), mean(e.step.sum), mean(e.sine.sum), ...
+        mean(e.step.tv), mean(e.sine.tv));
+end
+if ~any(strcmp(controllers, 'FOPSO_GWO')), return; end
+T = results.FOPSO_GWO.tuning;
+if ~isfield(T, 'fitness') || ~isfield(T.fitness, 'whole') || isempty(T.fitness.whole), return; end
+W = T.fitness.whole;
+e = results.FOPSO_GWO.effort;
+out('\nFOPSO-GWO was tuned with peak-torque caps per joint: the largest peak any of the paper''s\n');
+out('three controllers needs on that joint, over all their identified gain sets (Nm):\n\n');
+out('| | J1 | J2 | J3 | J4 | J5 | J6 |\n|---|---:|---:|---:|---:|---:|---:|\n');
+rows = {'Kick', W.cap.kick, e.step.kick; 'Step after kick', W.cap.step, e.step.peak; ...
+        'Sine', W.cap.sine, e.sine.peak};
+within = 0;
+for r = 1:size(rows, 1)
+    out('| %s: cap | %s |\n', rows{r, 1}, join_fmt('%.4g', rows{r, 2}));
+    out('| %s: FOPSO-GWO | %s |\n', rows{r, 1}, join_fmt('%.4g', rows{r, 3}));
+    within = within + sum(rows{r, 3} <= rows{r, 2} * (1 + 1e-9));
+end
+out('\nFOPSO-GWO stays within %d of the 18 caps.\n', within);
+end
+
+% ------------------------------------------------------------------------
 function report_optimizers(out, runs, paper, rerun)
 %REPORT_OPTIMIZERS  FBPA against FOPSO-GWO under the same costs, seeds and budget.
 %   rerun: the five paper metrics of the FBPA-FOPID shown in Sects 1-2 ([] if none).
@@ -362,7 +374,7 @@ costs = {'paper', 'fbpa', 'fbpa_all'};
 costs = costs(ismember(costs, {runs.cost}));
 seeds = unique([runs.seed]);
 budget = min([runs.evaluations]);                  % FOPSO-GWO's evaluations per run
-out('\n## 3. FBPA against FOPSO-GWO: same costs, seeds and budget\n\n');
+out('\n## 4. The FBPA and FOPSO-GWO optimisers: same costs, seeds and budget\n\n');
 out('Each optimiser was run with random seeds %s under %d costs (`tools/compare_optimizers.m`),\n', ...
     strjoin(arrayfun(@num2str, seeds, 'UniformOutput', false), ', '), numel(costs));
 out('with the paper''s budget of 30 particles x 100 iterations, the same search space, the same\n');
@@ -373,8 +385,8 @@ out('* **fbpa:** this work''s cost: both ITAEs relative to the FOPID and the fiv
 out('  relative to the paper''s FBPA-FOPID, with a penalty on every metric not better than it.\n');
 if any(strcmp(costs, 'fbpa_all'))
     out('* **fbpa_all:** the same, with each paper metric scored against the better of the paper''s\n');
-    out('  FBPA-FOPID and the FBPA-FOPID re-run here (Sect. 1), so a ratio below 1 on a metric\n');
-    out('  means beating both.\n');
+    out('  FBPA-FOPID and the best FBPA run under the paper''s fitness (`results/fbpa_gains.mat`),\n');
+    out('  so a ratio below 1 on a metric means beating both.\n');
 end
 out('\nLower is better. FBPA''s beetle antennae cost two extra evaluations per particle and\n');
 out('iteration, so for the same 100 iterations it uses three times the evaluations of FOPSO-GWO.\n');
@@ -430,7 +442,7 @@ hdr = ['| Cost | Optimiser (seed) | ITAE step | ITAE sine | Overshoot (%) | Adju
        'Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) | better than the paper''s FBPA-FOPID |'];
 sep = '|---|---|---:|---:|---:|---:|---:|---:|---:|:---:|';
 if ~isempty(rerun)
-    hdr = [hdr ' better than FBPA-FOPID (this work) |'];
+    hdr = [hdr ' better than this work''s FBPA-FOPID |'];
     sep = [sep ':---:|'];
 end
 out('%s\n%s\n', hdr, sep);
@@ -463,7 +475,10 @@ switch lower(name)
     otherwise
         target = '';
         if isfield(T, 'target'), target = upper(T.target); end
-        if strcmp(target, 'FBPA')
+        if strcmpi(name, 'whole')
+            s = ['whole-controller cost: tracking scored against the paper''s FBPA-FOPID with no ' ...
+                 'credit beyond twice as good, the torque it takes, and per-joint peak-torque caps (Sect. 3)'];
+        elseif strcmp(target, 'FBPA')
             s = 'cost: both ITAEs, and the five paper metrics scored against the paper''s FBPA-FOPID';
         elseif strcmp(target, 'FBPA-ALL')
             s = ['cost: both ITAEs, and the five paper metrics scored against the better of the ' ...

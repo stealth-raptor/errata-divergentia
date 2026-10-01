@@ -15,8 +15,8 @@ addpath(fileparts(fileparts(mfilename('fullpath'))));
 ref = dlmread(fullfile('data', 'twin_reference.csv'), ',', 1, 0);
 P = robot_params();
 worst = 0;
-k = 4 * strcmp(mode, 'shared');          % runs 1-4 separate, 5-8 shared
-for c = {'PID', 'FOPID'}
+k = 6 * strcmp(mode, 'shared');          % runs 1-6 separate, 7-12 shared
+for c = {'PID', 'FOPID', 'FBPA'}
     for x = {'step', 'sine'}
         if strcmp(mode, 'shared'), g = controller_gains(c{1}); else, g = controller_gains(c{1}, x{1}); end
         out = simulate_closed_loop(P, g, x{1});

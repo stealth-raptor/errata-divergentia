@@ -1,10 +1,11 @@
 """Write data/twin_reference.csv for tools/check_twin.m.
 
-Parses the gains from controller_gains.m, simulates both controllers through
-both experiments with the Python twin (tools/ur_twin.py) and stores q on the
-0.01 s grid.  Columns: run, t, q1..q6, with runs
-  1..4  PID step, PID sine, FOPID step, FOPID sine  with the per-experiment gains
-  5..8  the same with the shared gains.
+Parses the gains from controller_gains.m, simulates the three identified
+controllers through both experiments with the Python twin (tools/ur_twin.py)
+and stores q on the 0.01 s grid.  Columns: run, t, q1..q6, with runs
+  1..6   PID step, PID sine, FOPID step, FOPID sine, FBPA step, FBPA sine
+         with the per-experiment gains
+  7..12  the same with the shared gains.
 """
 import os, re, sys
 import numpy as np
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     rows = []
     k = 0
     for mode in ('separate', 'shared'):
-        for c in ('PID', 'FOPID'):
+        for c in ('PID', 'FOPID', 'FBPA'):
             for kind in ('step', 'sine'):
                 k += 1
                 g = gains[f'{c}/{kind if mode == "separate" else "shared"}']

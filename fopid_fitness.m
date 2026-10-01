@@ -1,4 +1,4 @@
-function [J, raw] = fopid_fitness(P, gains, ref, fit)
+function [J, raw, effort] = fopid_fitness(P, gains, ref, fit)
 %FOPID_FITNESS  Cost of one gain set for the FO-PSO/GWO tuner.
 %
 %   [J, raw] = FOPID_FITNESS(P, gains, ref, fit)
@@ -29,6 +29,11 @@ function [J, raw] = fopid_fitness(P, gains, ref, fit)
 %                            the ratio compares response times after the
 %                            step instead of times from t = 0, which all
 %                            start at 1 s
+%              whole         [] (default), or a struct that turns the cost
+%                            into the whole-controller cost below, with
+%                            fields floor, weights (1x4), ref (step_sum,
+%                            sine_sum, step_tv, sine_tv), cap (kick, step,
+%                            sine: 1x6 each) and cap_penalty
 %
 %   raw = [ITAE_step, ITAE_sine, overshoot, adjustment time, peak time,
 %          sine MSE, sine torque, step peak torque]
@@ -52,6 +57,21 @@ function [J, raw] = fopid_fitness(P, gains, ref, fit)
 %   diverges scores 1e3 + 1e3 * (fraction of the 5 s it failed to survive),
 %   so unstable candidates are still ranked by how long they held on.
 %
+%   Whole-controller cost (fit.whole set).  Tracking alone rewards ever
+%   stiffer controllers; this cost balances it against the torque it takes
+%   (CONTROL_EFFORT, simulated at the control rate):
+%     tracking  the ratios of entries 1-6 (both ITAEs and four paper
+%               metrics), each floored at fit.whole.floor: a metric better
+%               than floor x its reference earns no more credit
+%     effort    sum |tau| and total variation of tau in both experiments
+%               (the step's derivative kick excluded), relative to
+%               fit.whole.ref, not floored
+%     J = weighted mean of tracking (fit.weights(1:6)) and effort
+%         (fit.whole.weights) + regret * (paper metrics worse than ref)
+%         + cap_penalty * sum over joints of max(0, peak/cap - 1) for the
+%           kick, the step after the kick and the sine run
+%   effort returns the CONTROL_EFFORT of both runs (fields step, sine).
+%
 %   See also TUNE_FOPID_HYBRID, SIMULATE_CLOSED_LOOP, PERFORMANCE_METRICS.
 
 if nargin < 4 || isempty(fit), fit = struct(); end
@@ -61,20 +81,30 @@ if ~isfield(fit, 'regret'),    fit.regret = 1; end
 if ~isfield(fit, 'abort_err'), fit.abort_err = 5; end
 if ~isfield(fit, 'time_offset'), fit.time_offset = 0; end
 if ~isfield(fit, 'robust'),    fit.robust = false; end
+if ~isfield(fit, 'whole'),     fit.whole = []; end
+whole = ~isempty(fit.whole);
 
 opt.abort_err = fit.abort_err;
+if whole, opt.log_dt = 1e-3; end             % torque at the control rate
 T = 5;
 raw = nan(1, 8);
+effort = [];
 
-step = simulate_closed_loop(P, gains, 'step', opt);
-if step.diverged
-    J = diverged_cost(step, T, 0);
+step_full = simulate_closed_loop(P, gains, 'step', opt);
+if step_full.diverged
+    J = diverged_cost(step_full, T, 0);
     return;
 end
-sine = simulate_closed_loop(P, gains, 'sine', opt);
-if sine.diverged
-    J = diverged_cost(sine, T, 0.5);
+sine_full = simulate_closed_loop(P, gains, 'sine', opt);
+if sine_full.diverged
+    J = diverged_cost(sine_full, T, 0.5);
     return;
+end
+step = on_grid(step_full);                   % the paper's 0.01 s samples
+sine = on_grid(sine_full);
+if whole
+    effort.step = control_effort(step_full, 'step');
+    effort.sine = control_effort(sine_full, 'sine');
 end
 
 ms = performance_metrics(step, 'step');
@@ -90,13 +120,34 @@ num = raw;  den = ref;
 num(4:5) = num(4:5) - fit.time_offset;
 den(4:5) = den(4:5) - fit.time_offset;
 ratio = max(num, 0) ./ max(den, eps);
-judged = 3:8;
-judged = judged(fit.weights(judged) > 0);
-J = sum(fit.weights .* ratio) / sum(fit.weights) ...
-    + fit.regret * sum(max(0, ratio(judged) - 1));
-if fit.robust && sensitivity(P, gains, opt, step, sine) > 1e-6
+if whole
+    W = fit.whole;
+    es = effort.step;  en = effort.sine;
+    track = max(ratio(1:6), W.floor);
+    eff = [mean(es.sum) / W.ref.step_sum, mean(en.sum) / W.ref.sine_sum, ...
+           mean(es.tv)  / W.ref.step_tv,  mean(en.tv)  / W.ref.sine_tv];
+    over = sum(max(0, es.kick ./ W.cap.kick - 1)) + sum(max(0, es.peak ./ W.cap.step - 1)) ...
+           + sum(max(0, en.peak ./ W.cap.sine - 1));
+    J = (sum(fit.weights(1:6) .* track) + sum(W.weights .* eff)) / (sum(fit.weights(1:6)) + sum(W.weights)) ...
+        + fit.regret * sum(max(0, ratio(3:7) - 1)) + W.cap_penalty * over;
+else
+    judged = 3:8;
+    judged = judged(fit.weights(judged) > 0);
+    J = sum(fit.weights .* ratio) / sum(fit.weights) ...
+        + fit.regret * sum(max(0, ratio(judged) - 1));
+end
+if fit.robust && sensitivity(P, gains, opt, step_full, sine_full) > 1e-6
     J = J + 10;
 end
+end
+
+% ------------------------------------------------------------------------
+function out = on_grid(out)
+%ON_GRID  The samples on the paper's 0.01 s grid of a run logged faster.
+every = round(0.01 / (out.t(2) - out.t(1)));
+if every <= 1, return; end
+k = 1:every:numel(out.t);
+out.t = out.t(k);  out.r = out.r(:, k);  out.q = out.q(:, k);  out.u = out.u(:, k);
 end
 
 % ------------------------------------------------------------------------
