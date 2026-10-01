@@ -65,6 +65,9 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %     wmin, wmax   0.4, 0.9    inertia weight range
 %     alpha0       0.9         fractional order at k = 0
 %     alpha_drop   0.5         fractional order falls by this much by MaxIter
+%     alpha_hold   0           ... after being held at alpha0 for this fraction
+%                              of the run
+%     c3_ramp      false       true: the GWO coefficient grows from 0 to c3
 %     vmax         0.2         velocity clamp, as a fraction of each range
 %                              (the paper's |v| <= 1 is in raw units)
 %     Seeds        []          m x nvar rows in [0,1] to put into the swarm
@@ -129,8 +132,10 @@ for k = st.k + 1 : opts.MaxIter
     t_k = tic;
     tau = k / opts.MaxIter;
     w   = opts.wmax - (opts.wmax - opts.wmin) * tau;
-    a   = opts.alpha0 - opts.alpha_drop * tau;
+    a   = opts.alpha0 - opts.alpha_drop * max(0, (tau - opts.alpha_hold) / (1 - opts.alpha_hold));
     a_g = 2 * (1 - tau)^opts.gwo_power;
+    c3  = opts.c3;
+    if opts.c3_ramp, c3 = c3 * tau; end
 
     % ---- velocity: fractional memory + PSO + GWO attractors -------------
     g1 = a * (1 - a) / 2;
@@ -144,7 +149,7 @@ for k = st.k + 1 : opts.MaxIter
     V = memory ...
         + opts.c1 * rand(N, nvar) .* (st.pbest - st.X) ...
         + opts.c2 * rand(N, nvar) .* (gbest    - st.X) ...
-        + opts.c3 * rand(N, nvar) .* (x_gwo    - st.X);
+        + c3      * rand(N, nvar) .* (x_gwo    - st.X);
     V = min(max(V, -opts.vmax), opts.vmax);
 
     % ---- position, kept inside the unit box ------------------------------
@@ -282,7 +287,8 @@ end
 % ------------------------------------------------------------------------
 function opts = set_defaults(opts, nvar)
 d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1, 'c2', 1, 'c3', 1, 'gwo_power', 2, ...
-           'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0.5, ...
+           'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0.5, 'alpha_hold', 0, ...
+           'c3_ramp', false, ...
            'vmax', 0.2, 'Seeds', zeros(0, nvar), 'SeedFraction', 0.3, ...
            'SeedJitter', 0.05, 'UseParallel', false, 'Checkpoint', '', ...
            'Resume', false, 'CheckpointTag', [], 'RandomSeed', [], 'Verbose', true);
