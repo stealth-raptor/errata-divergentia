@@ -285,13 +285,15 @@ x_gwo  = mean over L in {alpha, beta, delta} of  L - A .* |C .* L - x|,   A = 2 
 ```
 
 * Alpha, beta and delta are the three best personal bests.
-* The inertia w falls linearly from 0.9 to 0.4, and the fractional order a follows Eq. 27
-  (0.9 → 0.4).
+* The inertia w falls linearly from 0.9 to 0.4. The fractional order a is held at 0.9; the
+  paper's Eq. 27 lowers it to 0.4, which drains the velocity memory (below).
+* c1 = c2 = 1.5 and c3 = 1: the three pulls add up to PSO's c1 + c2 = 4.
 * The GWO coefficient falls as a_g = 2(1 − k/K)², so the GWO term first explores around the three
   leaders and then refines around them.
-* Two settings differ from FBPA, both chosen on the paper's four 30-D test functions when the
-  optimiser was developed: c1 = c2 = c3 = 1 instead of 2, and the quadratic a_g decay instead of
-  GWO's usual linear one. |v| ≤ 0.2 of each range.
+* The quadratic a_g decay comes from the optimiser's first development, on the paper's four 30-D
+  test functions. The coefficients and the fractional order were chosen on this problem, on
+  development seeds, against plain PSO (`tools/develop_fopso_gwo.m`, below). |v| ≤ 0.2 of each
+  range.
 
 PSO (`pso.m`) is the plain baseline: global-best PSO with a linearly decreasing inertia weight
 (Shi and Eberhart), the paper's "improved PSO" (Eqs. 23–24):
