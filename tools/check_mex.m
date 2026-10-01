@@ -5,7 +5,7 @@ function check_mex()
 %   both experiments with use_mex = true and false, plus an unstable
 %   candidate with abort_err = 5 to check the early-abort path, and reports
 %   the largest differences and the speed-up.  Run from the repository root
-%   after BUILD_MEX.  The .m runs take about 40 s each in Octave.
+%   after BUILD_MEX.  The .m runs take about 40 s each in Octave (~14 min).
 
 addpath(fileparts(fileparts(mfilename('fullpath'))));
 if exist('simulate_mex') ~= 3 %#ok<EXIST>
@@ -13,7 +13,8 @@ if exist('simulate_mex') ~= 3 %#ok<EXIST>
 end
 P = robot_params();
 sets = {'PID', 'shared'; 'PID', 'step'; 'PID', 'sine'; ...
-        'FOPID', 'shared'; 'FOPID', 'step'; 'FOPID', 'sine'};
+        'FOPID', 'shared'; 'FOPID', 'step'; 'FOPID', 'sine'; ...
+        'FBPA', 'shared'; 'FBPA', 'step'; 'FBPA', 'sine'};
 if exist(fullfile('results', 'fopso_gwo_gains.mat'), 'file')
     sets(end+1, :) = {'FOPSO_GWO', 'shared'};
 end

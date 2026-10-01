@@ -4,15 +4,17 @@ Octave reproduction of the simulation results in
 
 > Zhou Jiang, Xiaohua Zhang, Guoquan Liu, *Trajectory tracking control of a 6-DOF robotic arm based on improved FOPID*, International Journal of Dynamics and Control **13**:137 (2025). DOI 10.1007/s40435-025-01620-x
 
-The arm model, both controllers, both experiments and the paper's FBPA optimiser are built from
-scratch. The PID and FOPID gains, which the paper does not publish, are **identified from the
-paper's own published curves**. These were read exactly from the vector graphics of the PDF.
-The FBPA-FOPID is produced the way the paper produced it: FBPA, re-implemented with the
-paper's settings and fitness, tunes the FOPID on the same arm.
+The arm model, the controllers, both experiments and the paper's FBPA optimiser are built from
+scratch. The gains of the paper's three controllers (PID, FOPID and FBPA-FOPID), which it does
+not publish, are **identified from the paper's own published curves**. These were read exactly
+from the vector graphics of the PDF.
 
 On top of the reproduction, the FOPID is re-tuned with a **fractional-order PSO / grey-wolf
-hybrid (FOPSO-GWO)**, this work's counterpart of FBPA, and compared with FBPA both through the
-controllers they produce and as optimisers under identical costs.
+hybrid (FOPSO-GWO)**, this work's counterpart of FBPA, as a whole controller: within the torque
+the paper's own controllers use, it tracks better than the paper's FBPA-FOPID on every metric
+of its curves and of its reproduction, and on four of the five in its table (peak time 1.10
+against 1.09 s). FBPA itself is re-implemented and compared with FOPSO-GWO as an optimiser under
+identical costs.
 
 This branch (`brand-new-day`) is the final code. It combines
 * the audited model and the PID / FOPID reproduction of branch `audit`: a line-by-line audit
@@ -27,17 +29,17 @@ This branch (`brand-new-day`) is the final code. It combines
 
 ```
 octave --eval build_mex             # once: compiles the C simulation (about 1000x faster)
-octave --eval "tune_fopid_hybrid(struct('Optimizer', 'FBPA', 'RandomSeed', 1))"     # FBPA-FOPID, ~10 min
-octave --eval "tune_fopid_hybrid(struct('Target', 'FBPA-all', 'RandomSeed', 2))"    # FOPSO-GWO, ~6 min
+octave --eval "tune_fopid_hybrid(struct('Fitness', 'whole', 'RandomSeed', 2))"   # FOPSO-GWO, ~6 min
 octave --eval main                  # all four controllers -> results/
 ```
 
-The FBPA run must come first: FOPSO-GWO's target includes its result. Optional:
+Optional:
 
 ```
+octave --eval "tune_fopid_hybrid(struct('Optimizer', 'FBPA', 'RandomSeed', 1))"   # FBPA as an optimiser, ~10 min
 octave --eval "addpath tools; compare_optimizers"   # FBPA vs FOPSO-GWO, 3 costs x 4 seeds (~3 h;
                                                      # or one process per seed: compare_optimizers(1), ...)
-octave --eval "main('shared')"      # one PID / FOPID gain set for both experiments -> results/shared_gains/
+octave --eval "main('shared')"      # one gain set per paper controller for both experiments -> results/shared_gains/
 ```
 
 Without `build_mex` everything still runs on the plain .m simulation, with identical results,
@@ -54,8 +56,8 @@ the commands above, and `results/optimizer_runs/` the 24 runs of `compare_optimi
 experiments used the same ones. `controller_gains(controller, experiment)` holds three
 identified sets per controller: `'step'`, `'sine'` and `'shared'`. The default `main` uses the
 per-experiment sets, which match the figures most closely; `main('shared')` uses one set for
-both experiments, as a single controller would. The tuned FBPA-FOPID and FOPSO-GWO use one set
-for both experiments.
+both experiments, as a single controller would. FOPSO-GWO uses one tuned set for both
+experiments.
 
 Checks:
 
@@ -63,7 +65,7 @@ Checks:
 octave --eval "addpath tools; verify_dynamics"   # dynamics vs Jacobian formula, energy conservation
 octave --eval "addpath tools; check_twin"        # Octave model == Python identification twin
 octave --eval "addpath tools; check_twin('shared')"
-octave --eval "addpath tools; check_mex"         # compiled simulation == .m loop (~10 min)
+octave --eval "addpath tools; check_mex"         # compiled simulation == .m loop (~14 min)
 ```
 
 ### Figures
@@ -90,43 +92,75 @@ is magenta. All signals are logged every 0.01 s, as in the paper.
 | FOPID | Paper | 31.2 | 1.89 | 1.33 | 8.8e-3 | 2.57e4 |
 | FOPID | This work | 33.2 | 1.95 | 1.42 | 5.5e-3 | 1.03e4 |
 | FBPA-FOPID | Paper | 22.1 | 1.43 | 1.09 | 3.7e-3 | 2.32e4 |
-| FBPA-FOPID | This work (FBPA re-run) | 26.9 | 1.12 | 1.05 | 2.7e-4 | 1.11e4 |
-| **FOPSO-GWO** | **This work (proposed)** | **11.6** | **1.05** | **1.03** | **6.2e-5** | **9438** |
+| FBPA-FOPID | This work | 19.8 | 1.45 | 1.25 | 2.3e-3 | 1.01e4 |
+| **FOPSO-GWO** | **This work (proposed)** | **18.6** | **1.29** | **1.10** | **1.3e-3** | **9951** |
 
-* **PID, FOPID:** reproductions, with gains identified from the paper's curves.
-* **FBPA-FOPID:** the paper's method re-run on the same arm: FBPA with its Sect. 4 settings and
-  its fitness (step ITAE, Eq. 29). The paper publishes no gains, so these are not the authors'
-  gains, and the run lands near, not on, the published row: faster and with a far smaller MSE,
-  but with more overshoot.
+* **PID, FOPID, FBPA-FOPID:** reproductions of the paper's three controllers, with the gains
+  that make the simulation match each controller's published curves (below). The paper
+  publishes no gains.
+* **FBPA-FOPID's peak time:** the paper's table says 1.09 s, but its own FBPA-FOPID curves
+  peak at 1.26 s on average (summary.md, Sect. 7). The reproduction follows the curves (1.25 s).
 * **Torque:** the paper's torque column cannot be reproduced. It is a permutation of its own
   Fig. 19, and its torque curves are numerical artefacts (audit 3.3–3.4). This work's torques
   are the physically consistent values.
 
-## FOPSO-GWO against FBPA-FOPID
+## FOPSO-GWO: a whole controller
 
-| Metric | Paper FBPA-FOPID | FBPA-FOPID, re-run | **FOPSO-GWO** | vs paper | vs re-run |
+FOPSO-GWO re-tunes the FOPID as a whole controller (`Fitness = 'whole'`): better tracking than
+the paper's FBPA-FOPID, **within the torque the paper's own controllers use**, joint by joint,
+and without one joint hiding behind the averages.
+
+| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | **FOPSO-GWO** | vs table | vs this work's FBPA-FOPID |
+|---|---:|---:|---:|---:|---:|---:|
+| Overshoot (%) | 22.1 | 21.2 | 19.8 | **18.6** | −16 % | −6 % |
+| Adjustment time (s) | 1.43 | 1.52 | 1.45 | **1.29** | −10 % | −11 % |
+| Peak time (s) | 1.09 | 1.26 | 1.25 | **1.10** | +0.9 % | −12 % |
+| Sine MSE (rad²) | 3.7e-3 | 3.7e-3 | 2.3e-3 | **1.3e-3** | −65 % | −42 % |
+| Sine Σ\|τ\| (Nm) | 2.32e4 | 2.57e4 | 1.01e4 | **9951** | −57 % | −2 % |
+| ITAE step / sine (Eq. 29) | n/a | 1.19 / 3.56 | 1.16 / 2.44 | **0.84 / 1.69** | n/a | −28 % / −31 % |
+
+**Torque.** Peaks are the largest joint; sums and total variations (Σ\|τ(k+1) − τ(k)\| at
+1 kHz, which grows with chattering) are averaged over the joints. The first 50 ms after the step
+are the derivative kick, which every controller with a D-term produces on an ideal step; it is
+listed on its own.
+
+| Controller | Kick peak (Nm) | Step peak after kick (Nm) | Sine peak (Nm) | Step total variation | Sine total variation |
 |---|---:|---:|---:|---:|---:|
-| Overshoot (%) | 22.1 | 26.9 | **11.6** | −47 % | −57 % |
-| Adjustment time (s) | 1.43 | 1.116 | **1.050** | −27 % | −6 % |
-| Peak time (s) | 1.09 | 1.053 | **1.035** | −5 % | −2 % |
-| Sine MSE (rad²) | 3.7e-3 | 2.73e-4 | **6.21e-5** | −98 % | −77 % |
-| Sine Σ\|τ\| (Nm) | 2.32e4 | 1.11e4 | **9438** | −59 % | −15 % |
-| ITAE step / sine (Eq. 29) | n/a | 0.274 / 0.443 | **0.231 / 0.278** | n/a | −16 % / −37 % |
-| Step peak torque (Nm) | n/a | 1.05e5 | 1.54e5 | n/a | +46 % |
+| PID | 2.1e5 | 1078 | 350 | 935 | 5055 |
+| FOPID | 7.9e5 | 1524 | 1902 | 922 | 22840 |
+| FBPA-FOPID | 8.2e4 | 1495 | 495 | 935 | 1445 |
+| **FOPSO-GWO** | **8.1e4** | **1476** | **365** | 1175 | **598** |
 
-**FOPSO-GWO beats both FBPA-FOPIDs, the paper's and the re-run, on all five of the paper's
-metrics**, and on both ITAEs. The one figure that is worse is the peak torque at the step
-instant, which the paper does not report. FOPSO-GWO was tuned with `Target = 'FBPA-all'`: each
-paper metric is scored against the better of the two FBPA-FOPIDs, so the cost rewards beating
-both.
+* **Within the paper's torque, on every joint.** FOPSO-GWO stays within all 24 caps: on every
+  joint, its peak torque in the kick, in the rest of the step and in the sine run is no larger
+  than the largest any of the paper's three controllers needs there, and no joint overshoots
+  more than the paper's FBPA-FOPID does on its worst joint (33 %). Its sine peak is a fifth
+  of FOPID's and below FBPA-FOPID's, and its sine torque varies 2.4× less than FBPA-FOPID's.
+* **Tracking.** It beats this work's FBPA-FOPID and the paper's own FBPA-FOPID curves on all
+  five metrics and both ITAEs, and the paper's table on four of the five.
+* **Peak time** is the exception, 1.10 s against the table's 1.09 s. The table's 1.09 s
+  contradicts the paper's own curves (1.26 s), and within the paper's torque it is out of
+  reach. In all eight seeds tried (best mean 1.100 s, the others 1.125–1.155 s), joint 2, the
+  shoulder that swings the whole arm, peaks at 1.23–1.31 s, and one of the three heavy joints
+  runs at 96–100 % of its torque cap. More torque buys it:
+
+| Torque allowed | Overshoot (%) | Adjustment (s) | Peak (s) | MSE (rad²) | Step peak after kick / cap | Kick / cap | Step total variation |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **The paper's controllers' (this result)** | 18.6 | 1.29 | 1.100 | 1.3e-3 | 0.97 | 0.53 | 1175 |
+| 2× that | 11.2 | 1.23 | 1.090 | 8.6e-4 | 1.44 | 1.95 | 1123 |
+| Unlimited (the previous FOPSO-GWO, `Target 'FBPA-all'`) | 11.6 | 1.05 | 1.035 | 6.2e-5 | 8.33 | 4.82 | 3876 |
+
+So the previous result's lead on every metric came from about 8× the torque of the paper's own
+controllers after the step and 3.3× more torque variation. The whole-controller result gives
+up some tracking for a controller that the paper's own actuator demands can drive.
 
 ### FBPA against FOPSO-GWO as optimisers
 
-The controller comparison above mixes two things: the optimiser and the cost it was given (the
-paper's FBPA optimised step ITAE only). `tools/compare_optimizers.m` separates them by running
-both optimisers under the same three costs, with the same four random seeds, search space,
-seed controller and initial swarms, and the paper's budget of 30 particles × 100 iterations.
-Final best cost (lower is better):
+The comparison above is between controllers, each tuned with its own cost. To compare the
+optimisers themselves, FBPA is re-implemented (`fbpa.m`) and `tools/compare_optimizers.m` runs
+both under the same three costs, with the same four random seeds, search space, seed
+controller and initial swarms, and the paper's budget of 30 particles × 100 iterations. Final
+best cost (lower is better):
 
 | Cost | Optimiser | seed 1 | seed 2 | seed 3 | seed 4 | mean | evaluations | mean after 3030 evaluations |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
@@ -134,13 +168,13 @@ Final best cost (lower is better):
 | | FOPSO-GWO | 0.141 | 0.125 | **0.042** | 0.156 | **0.116** | 3030 | **0.116** |
 | fbpa (vs paper's FBPA) | FBPA | **0.386** | 0.534 | 0.505 | 0.519 | 0.486 | 9030 | 1.67 |
 | | FOPSO-GWO | 0.424 | 0.409 | 0.475 | 0.392 | **0.425** | 3030 | **0.425** |
-| fbpa_all (vs both) | FBPA | 1.154 | **0.449** | 2.302 | 0.991 | 1.224 | 9030 | 10.1 |
+| fbpa_all (vs paper's FBPA and the best FBPA run) | FBPA | 1.154 | **0.449** | 2.302 | 0.991 | 1.224 | 9030 | 10.1 |
 | | FOPSO-GWO | 2.302 | 0.459 | 1.308 | 0.558 | **1.157** | 3030 | **1.157** |
 
 * **Same iterations (the paper's budget):** FOPSO-GWO has the lower mean under all three costs
   and the lower final cost on 8 of the 12 seed–cost pairs. The best single run is FBPA's under
   two of the three costs, by 1–2 %. Under `fbpa_all`, FBPA's best run (seed 2) also beats both
-  FBPA-FOPIDs on all five metrics, practically tied with FOPSO-GWO's (summary.md, Sect. 3).
+  references on all five metrics, practically tied with FOPSO-GWO's (summary.md, Sect. 4).
 * **Same evaluations:** FBPA's beetle antennae evaluate the cost twice more per particle and
   iteration, so it spends 9030 evaluations to FOPSO-GWO's 3030. After 3030 evaluations FBPA's
   mean best cost is 2.4×, 3.9× and 8.7× FOPSO-GWO's final one (`convergence.png`). (FBPA's
@@ -192,12 +226,26 @@ step  <- 0.95 step   after every iteration, from 0.0001
 ### The tuning (`tune_fopid_hybrid.m`, `fopid_fitness.m`)
 
 * **Optimizer.** `'FOPSO-GWO'` (default) or `'FBPA'`. FBPA defaults to the paper's fitness,
-  `Fitness = 'itae'`, and writes `results/fbpa_gains.mat`; FOPSO-GWO writes
+  `Fitness = 'itae'`, and writes `results/fbpa_gains.mat` (an optimiser result, used by the
+  `FBPA-all` target and the optimiser comparison; the FBPA-FOPID shown everywhere else is the
+  reproduction identified from the paper's curves). FOPSO-GWO writes
   `results/fopso_gwo_gains.mat`.
+* **Whole controller** (`Fitness = 'whole'`, the result above). Tracking alone rewards ever
+  stiffer controllers, so this cost balances it against the torque it takes:
+  * *tracking:* both ITAEs and four paper metrics, scored against the paper's FBPA-FOPID (its
+    table; for the ITAEs its reproduction), with no extra credit beyond twice as good;
+  * *effort:* Σ\|τ\| and the total variation of τ in both experiments, at 1 kHz and without
+    the kick, scored against the reproduced FBPA-FOPID;
+  * *caps,* heavily penalised: on every joint, the peak torque in the kick, in the rest of the
+    step and in the sine run must stay within the largest any of the paper's three
+    controllers needs (all identified gain sets), times `CapScale` (default 1); and no joint
+    may overshoot more than the paper's FBPA-FOPID figures do on their worst joint (33.1 %);
+  * every paper metric must still beat the paper's FBPA-FOPID table (regret 2).
+  The result above is the best of random seeds 1–8 (seed 2).
 * **Target.** With `Target = 'FBPA'`, the five paper metrics are scored against the paper's
   FBPA-FOPID values (Tables 3 and 4), and any metric not yet better than FBPA's is penalised
   extra. `Target = 'FBPA-all'` scores each metric against the better of the paper's value and
-  the re-run FBPA-FOPID's. The two ITAE terms (Eq. 29) are scored against the FOPID. Adjustment
+  that of the best FBPA optimiser run (`results/fbpa_gains.mat`). The two ITAE terms (Eq. 29) are scored against the FOPID. Adjustment
   and peak time are scored after the step instant: measured from t = 0, as the paper reports
   them, every peak time is ≥ 1 s and the ratio would hardly move. The reported metrics are
   unchanged. The default `Target = 'baseline'` scores everything against the FOPID instead.
@@ -216,7 +264,7 @@ step  <- 0.95 step   after every iteration, from 0.0001
 * **Candidates must complete both experiments**, also under the paper's step-only fitness, and
   stop as soon as any joint error exceeds 5 rad. The step-only fitness does not see the sine
   run otherwise: some of its results track well but with a sine torque of 1e5–3e5 Nm
-  (summary.md, Sect. 3).
+  (summary.md, Sect. 4).
 
 ### Speed: the compiled simulation (`simulate_mex.c`, `build_mex.m`)
 
@@ -241,8 +289,9 @@ needed here and was not carried over.
 
 ## Result: match to the published curves
 
-Every published curve of Figs 6–11 and 13–18 was read from the PDF, and the PID and FOPID gains
-were identified so that the simulation matches them (rms of q_this work − q_paper, rad):
+Every published curve of Figs 6–11 and 13–18 was read from the PDF, and the PID, FOPID and
+FBPA-FOPID gains were identified so that the simulation matches them (rms of q_this work −
+q_paper, rad):
 
 | Controller | Experiment | J1 | J2 | J3 | J4 | J5 | J6 | mean, separate gains (`main`) | mean, shared gains (`main('shared')`) | previous gains |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -250,11 +299,16 @@ were identified so that the simulation matches them (rms of q_this work − q_pa
 | PID | sine | 0.124 | 0.064 | 0.105 | 0.025 | 0.143 | 0.021 | **0.080** | 0.099 | 0.188 |
 | FOPID | step | 0.118 | 0.038 | 0.034 | 0.024 | 0.077 | 0.054 | **0.058** | 0.070 | 0.171 |
 | FOPID | sine | 0.050 | 0.046 | 0.069 | 0.016 | 0.108 | 0.019 | **0.051** | 0.062 | 0.099 |
+| FBPA-FOPID | step | 0.026 | 0.027 | 0.038 | 0.053 | 0.052 | 0.044 | **0.040** | 0.043 | – |
+| FBPA-FOPID | sine | 0.038 | 0.018 | 0.050 | 0.015 | 0.061 | 0.015 | **0.033** | 0.040 | – |
 
-The per-joint columns are for the separate gains. Separate gains lower every mean by 15–19 %,
-mostly on joints 3–5. Joint 1's step does not improve (audit report 4.3). The re-run
-FBPA-FOPID is not fitted to the curves; its distance from the paper's FBPA-FOPID curves is in
-summary.md, Sect. 5.
+The per-joint columns are for the separate gains. For PID and FOPID, separate gains lower every
+mean by 15–19 %, mostly on joints 3–5; joint 1's step does not improve (audit report 4.3).
+FBPA-FOPID matches its curves best of the three, and one gain set fits both of its experiments
+almost as well as two: the paper's FBPA-FOPID step and sine curves are more consistent with each
+other than its PID and FOPID ones. All identified sets are numerically well-conditioned (a
+relative gain change of 1e-10 moves the response by less than 1e-8 rad), so they reproduce
+across platforms (`tools/check_twin.m`).
 
 Why an exact match of every panel is not possible (details in the audit report):
 
@@ -266,7 +320,7 @@ Why an exact match of every panel is not possible (details in the audit report):
   *permutation* of Fig. 19 (audit 3.3–3.4). The torque metric therefore cannot be reproduced.
   Ours is the physically consistent value.
 * **The paper's tables and figures disagree.** The same metrics recomputed from its published
-  curves differ from its tables (summary.md, Sect. 6).
+  curves differ from its tables (summary.md, Sect. 7).
 * The paper publishes no gains, no solver settings and no fractional-operator settings. The
   identified gains are not unique; they show the curves are attainable, not that they are the
   authors' gains.
@@ -287,6 +341,7 @@ main.m                      runner: all controllers x both experiments, tables a
 ├── simulate_closed_loop.m  controller at 1 kHz + RK4 integration of the plant, logged at 0.01 s
 │                           (runs simulate_mex when built)
 ├── performance_metrics.m   the metrics of the paper's Tables 3 and 4
+├── control_effort.m        the torque a controller needs: peaks, sums, total variation, the step's kick
 ├── paper_curves.m          the paper's published curves, in the same format as a simulation
 ├── plot_paper_figures.m    the figure set, in the paper's own layout, plus overlays
 └── plot_convergence.m      FBPA vs FOPSO-GWO convergence (from results/optimizer_runs/)
@@ -325,7 +380,7 @@ docs/audit_report.md        the audit
 | Fractional operator | Oustaloup, N = 5, 1e-3…1e3 rad/s | FOMCON defaults |
 | Solver | RK4 at 1 ms, controller at 1 kHz, logging at 0.01 s | logging interval read from the paper's figures |
 | Metrics | on the 0.01 s grid; settling band 5 % | these reproduce the paper's own figures→table relation (audit 3.2, 3.5) |
-| Controller gains | identified from the published curves: per experiment (default) or one set for both experiments (`main('shared')`) | **the paper publishes no gains**, nor says whether the two experiments shared them |
+| Controller gains | PID, FOPID and FBPA-FOPID identified from the published curves: per experiment (default) or one set for both experiments (`main('shared')`) | **the paper publishes no gains**, nor says whether the two experiments shared them |
 
 ## Requirements
 

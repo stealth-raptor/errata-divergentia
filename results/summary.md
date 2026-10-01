@@ -9,14 +9,13 @@ kinematics, Eq. 21) in Octave, and extended with this work's optimiser, FOPSO-GW
   time, all from t = 0; sine MSE and sum of |tau|; each averaged over the six joints and
   computed on the paper's 0.01 s logging grid.
 * **Controllers:**
-  * PID and FOPID: gains identified from the paper's published curves, one set per
-    experiment (`controller_gains(name, experiment)`).
-  * FBPA-FOPID: the FOPID tuned by the paper's FBPA (`fbpa.m`), re-implemented with the
-    paper's settings; the paper's fitness, step ITAE (Eq. 29) (random seed 1).
+  * PID, FOPID and FBPA-FOPID, the paper's three controllers: gains identified from the
+    paper's published curves of each controller, one set per experiment
+    (`controller_gains(name, experiment)`).
   * FOPSO-GWO: the FOPID tuned by this work's FO-PSO / grey-wolf hybrid
-    (`hybrid_fopso_gwo.m`); cost: both ITAEs, and the five paper metrics scored against the better of the paper's FBPA-FOPID and the FBPA-FOPID re-run here, metric by metric (random seed 2).
-  * Both optimisers: 30 particles x 100 iterations (the paper's budget), the same search
-    space, seeded with the identified FOPID; one gain set for both experiments.
+    (`hybrid_fopso_gwo.m`), 30 particles x 100 iterations (the paper's FBPA budget),
+    seeded with the identified FOPID, one gain set for both experiments; whole-controller cost: tracking scored against the paper's FBPA-FOPID with no credit beyond twice as good, the torque it takes, and per-joint caps on the peak torque and the overshoot (Sect. 3)
+    (random seed 2).
 
 ## 1. The paper's Tables 3 and 4 against this work
 
@@ -27,34 +26,63 @@ kinematics, Eq. 21) in Octave, and extended with this work's optimiser, FOPSO-GW
 | FOPID | Paper (Tables 3-4) | 31.2 | 1.89 | 1.33 | 8.80e-03 | 2.569e+04 |
 | FOPID | This work | 33.2 | 1.95 | 1.42 | 5.51e-03 | 1.034e+04 |
 | FBPA-FOPID | Paper (Tables 3-4) | 22.1 | 1.43 | 1.09 | 3.70e-03 | 2.315e+04 |
-| FBPA-FOPID | This work | 26.9 | 1.12 | 1.05 | 2.73e-04 | 1.113e+04 |
-| **FOPSO-GWO** | **This work (proposed)** | **11.6** | **1.05** | **1.03** | **6.21e-05** | **9438** |
+| FBPA-FOPID | This work | 19.8 | 1.45 | 1.25 | 2.25e-03 | 1.014e+04 |
+| **FOPSO-GWO** | **This work (proposed)** | **18.6** | **1.29** | **1.10** | **1.31e-03** | **9951** |
 
-PID, FOPID: this work reproduces the paper's controllers with gains identified from its
-curves. FBPA-FOPID: the paper's optimiser re-run on the same arm; its gains are not the
-authors' (the paper publishes none). The paper's torque column is not a reproducible
-target: it is a permutation of its own Fig. 19 and its torque curves are numerical
-artefacts (Sect. 6 below; docs/audit_report.md, 3.3-3.4).
+PID, FOPID, FBPA-FOPID: reproductions, with the gains that make the simulation match each
+controller's published curves (Sect. 6); the paper publishes no gains. The paper's torque
+column is not a reproducible target: it is a permutation of its own Fig. 19 and its torque
+curves are numerical artefacts (Sect. 7; docs/audit_report.md, 3.3-3.4).
 
 ## 2. FOPSO-GWO against FBPA-FOPID
 
-| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | **FOPSO-GWO** | vs paper FBPA-FOPID | vs FBPA-FOPID (this work) |
+| Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | **FOPSO-GWO** | vs paper table | vs this work's FBPA-FOPID |
 |---|---:|---:|---:|---:|---:|---:|
-| ITAE step (Eq. 29) | n/a | 1.189 | 0.2742 | **0.2311** | n/a | -15.7 % |
-| ITAE sine | n/a | 3.56 | 0.4428 | **0.2778** | n/a | -37.3 % |
-| Overshoot (%) | 22.1 | 21.2 | 26.9 | **11.6** | -47.4 % | -56.7 % |
-| Adjustment time (s) | 1.430 | 1.524 | 1.116 | **1.050** | -26.6 % | -5.9 % |
-| Peak time (s) | 1.090 | 1.258 | 1.053 | **1.035** | -5.0 % | -1.7 % |
-| Sine MSE (rad^2) | 3.700e-03 | 3.676e-03 | 2.734e-04 | **6.211e-05** | -98.3 % | -77.3 % |
-| Sine sum \|tau\| (Nm) | 2.315e+04 | 2.568e+04 | 1.113e+04 | **9438** | -59.2 % | -15.2 % |
-| Step peak torque (Nm) | n/a | n/a | 1.053e+05 | **1.541e+05** | n/a | +46.4 % |
+| Overshoot (%) | 22.1 | 21.2 | 19.8 | **18.6** | -15.9 % | -6.0 % |
+| Adjustment time (s) | 1.430 | 1.524 | 1.453 | **1.287** | -10.0 % | -11.4 % |
+| Peak time (s) | 1.090 | 1.258 | 1.250 | **1.100** | +0.9 % | -12.0 % |
+| Sine MSE (rad^2) | 3.700e-03 | 3.676e-03 | 2.253e-03 | **1.308e-03** | -64.6 % | -41.9 % |
+| Sine sum \|tau\| (Nm) | 2.315e+04 | 2.568e+04 | 1.014e+04 | **9951** | -57.0 % | -1.9 % |
+| ITAE step (Eq. 29) | n/a | 1.189 | 1.158 | **0.8385** | n/a | -27.6 % |
+| ITAE sine | n/a | 3.56 | 2.44 | **1.692** | n/a | -30.7 % |
 
-On the paper's five metrics FOPSO-GWO is better than the paper's FBPA-FOPID on 5 of 5,
-and better than FBPA-FOPID re-run on this arm on 5 of 5. Negative changes are improvements.
-The step peak torque (max |tau| at the step instant, averaged over the joints) is not one
-of the paper's metrics.
+On the paper's five metrics FOPSO-GWO is better than the paper's FBPA-FOPID table on
+4 of 5, than its figures on 5 of 5, and than this work's FBPA-FOPID on 5 of 5.
+Negative changes are improvements. What the torque costs is in Sect. 3.
 
-## 3. FBPA against FOPSO-GWO: same costs, seeds and budget
+## 3. Control effort
+
+Torque at the control rate (1 kHz), from `control_effort.m`. The first 50 ms after the step
+are the derivative kick: the fractional derivative of the ideal 1 rad step drives every
+controller with a D-term to 1e4-1e6 Nm there, so the kick is listed on its own and the
+other step columns exclude it. Peaks are the largest joint; sums and total variations
+(sum of |tau(k+1) - tau(k)|, which grows with chattering) are averaged over the joints.
+
+| Controller | Kick peak | Step peak after kick | Sine peak | Step sum \|tau\| after kick | Sine sum \|tau\| | Step total variation | Sine total variation |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| PID | 2.11e+05 | 1078 | 350.1 | 1.246e+04 | 1.046e+04 | 934.5 | 5055 |
+| FOPID | 7.87e+05 | 1524 | 1902 | 8499 | 1.034e+04 | 922.3 | 2.284e+04 |
+| FBPA-FOPID | 8.17e+04 | 1495 | 494.8 | 6343 | 1.014e+04 | 934.7 | 1445 |
+| FOPSO-GWO | 8.05e+04 | 1476 | 364.7 | 7662 | 9951 | 1175 | 597.7 |
+
+FOPSO-GWO was tuned with caps per joint: for the torque, the largest peak any of the
+paper's three controllers needs on that joint over all their identified gain sets (Nm);
+for the overshoot, the worst joint of the paper's own FBPA-FOPID figures (%):
+
+| | J1 | J2 | J3 | J4 | J5 | J6 |
+|---|---:|---:|---:|---:|---:|---:|
+| Kick: cap | 1.113e+06 | 2.105e+05 | 1.502e+05 | 1.09e+04 | 4.552e+04 | 5.085e+04 |
+| Kick: FOPSO-GWO | 8.052e+04 | 3.022e+04 | 7.873e+04 | 5757 | 1.297e+04 | 1.594e+04 |
+| Step after kick: cap | 1524 | 1495 | 754.3 | 159.7 | 60.9 | 639 |
+| Step after kick: FOPSO-GWO | 1476 | 1163 | 690.1 | 98.07 | 46.59 | 8.98 |
+| Sine: cap | 1669 | 1902 | 627.2 | 495.1 | 480.8 | 64.29 |
+| Sine: FOPSO-GWO | 195.1 | 364.7 | 173.3 | 20.91 | 26.2 | 23.92 |
+| Overshoot: cap | 33.07 | 33.07 | 33.07 | 33.07 | 33.07 | 33.07 |
+| Overshoot: FOPSO-GWO | 19.4 | 16.48 | 6.273 | 10.06 | 29.97 | 29.27 |
+
+FOPSO-GWO stays within 24 of the 24 caps.
+
+## 4. The FBPA and FOPSO-GWO optimisers: same costs, seeds and budget
 
 Each optimiser was run with random seeds 1, 2, 3, 4 under 3 costs (`tools/compare_optimizers.m`),
 with the paper's budget of 30 particles x 100 iterations, the same search space, the same
@@ -65,8 +93,8 @@ seed (the identified FOPID) and, for each random seed, the same initial swarm:
 * **fbpa:** this work's cost: both ITAEs relative to the FOPID and the five paper metrics
   relative to the paper's FBPA-FOPID, with a penalty on every metric not better than it.
 * **fbpa_all:** the same, with each paper metric scored against the better of the paper's
-  FBPA-FOPID and the FBPA-FOPID re-run here (Sect. 1), so a ratio below 1 on a metric
-  means beating both.
+  FBPA-FOPID and the best FBPA run under the paper's fitness (`results/fbpa_gains.mat`),
+  so a ratio below 1 on a metric means beating both.
 
 Lower is better. FBPA's beetle antennae cost two extra evaluations per particle and
 iteration, so for the same 100 iterations it uses three times the evaluations of FOPSO-GWO.
@@ -88,18 +116,18 @@ it had the lower mean under 3 of 3 costs.
 
 The best run of each, on the paper's metrics:
 
-| Cost | Optimiser (seed) | ITAE step | ITAE sine | Overshoot (%) | Adjustment time (s) | Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) | better than the paper's FBPA-FOPID | better than FBPA-FOPID (this work) |
+| Cost | Optimiser (seed) | ITAE step | ITAE sine | Overshoot (%) | Adjustment time (s) | Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) | better than the paper's FBPA-FOPID | better than this work's FBPA-FOPID |
 |---|---|---:|---:|---:|---:|---:|---:|---:|:---:|:---:|
-| paper | FBPA (1) | 0.2742 | 0.4428 | 26.9 | 1.116 | 1.053 | 2.734e-04 | 1.113e+04 | 4 of 5 | 0 of 5 |
-| paper | FOPSO-GWO (3) | 0.1204 | 0.09293 | 14.8 | 1.052 | 1.038 | 6.890e-04 | 1.996e+05 | 4 of 5 | 3 of 5 |
-| fbpa | FBPA (1) | 0.9997 | 0.8657 | 7.5 | 1.142 | 1.078 | 3.459e-04 | 9629 | 5 of 5 | 2 of 5 |
-| fbpa | FOPSO-GWO (4) | 0.6952 | 0.5673 | 10.3 | 1.162 | 1.077 | 2.472e-04 | 9427 | 5 of 5 | 3 of 5 |
+| paper | FBPA (1) | 0.2742 | 0.4428 | 26.9 | 1.116 | 1.053 | 2.734e-04 | 1.113e+04 | 4 of 5 | 3 of 5 |
+| paper | FOPSO-GWO (3) | 0.1204 | 0.09293 | 14.8 | 1.052 | 1.038 | 6.890e-04 | 1.996e+05 | 4 of 5 | 4 of 5 |
+| fbpa | FBPA (1) | 0.9997 | 0.8657 | 7.5 | 1.142 | 1.078 | 3.459e-04 | 9629 | 5 of 5 | 5 of 5 |
+| fbpa | FOPSO-GWO (4) | 0.6952 | 0.5673 | 10.3 | 1.162 | 1.077 | 2.472e-04 | 9427 | 5 of 5 | 5 of 5 |
 | fbpa_all | FBPA (2) | 0.1569 | 0.1596 | 11.5 | 1.053 | 1.037 | 3.290e-05 | 9623 | 5 of 5 | 5 of 5 |
 | fbpa_all | FOPSO-GWO (2) | 0.2311 | 0.2778 | 11.6 | 1.050 | 1.035 | 6.211e-05 | 9438 | 5 of 5 | 5 of 5 |
 
 Convergence: `convergence.png` (best cost against cost evaluations).
 
-## 4. Per joint
+## 5. Per joint
 
 ### Step overshoot (%)
 
@@ -110,8 +138,8 @@ Convergence: `convergence.png` (best cost against cost evaluations).
 | FOPID | Paper figures | 37.6 | 38.1 | 5.9 | 9.3 | 85.0 | 30.7 |
 | FOPID | This work | 23.5 | 38.8 | 10.6 | 2.9 | 94.2 | 29.5 |
 | FBPA-FOPID | Paper figures | 29.0 | 25.0 | 10.5 | 2.5 | 33.1 | 26.9 |
-| FBPA-FOPID | This work | 39.9 | 28.3 | 71.1 | 11.4 | 6.7 | 3.9 |
-| FOPSO-GWO | This work | 4.3 | 6.4 | 32.1 | 10.8 | 2.7 | 13.4 |
+| FBPA-FOPID | This work | 30.6 | 16.0 | 4.0 | 7.4 | 50.2 | 10.3 |
+| FOPSO-GWO | This work | 19.4 | 16.5 | 6.3 | 10.1 | 30.0 | 29.3 |
 
 ### Step adjustment time (s)
 
@@ -122,8 +150,8 @@ Convergence: `convergence.png` (best cost against cost evaluations).
 | FOPID | Paper figures | 2.38 | 1.90 | 2.00 | 1.35 | 2.71 | 1.34 |
 | FOPID | This work | 2.64 | 2.00 | 1.84 | 1.44 | 2.53 | 1.24 |
 | FBPA-FOPID | Paper figures | 1.78 | 1.44 | 1.58 | 1.26 | 1.80 | 1.28 |
-| FBPA-FOPID | This work | 1.20 | 1.10 | 1.14 | 1.15 | 1.09 | 1.01 |
-| FOPSO-GWO | This work | 1.03 | 1.10 | 1.07 | 1.06 | 1.01 | 1.03 |
+| FBPA-FOPID | This work | 2.09 | 1.42 | 1.26 | 1.56 | 1.34 | 1.05 |
+| FOPSO-GWO | This work | 1.52 | 1.36 | 1.17 | 1.26 | 1.09 | 1.33 |
 
 ### Step peak time (s)
 
@@ -134,8 +162,8 @@ Convergence: `convergence.png` (best cost against cost evaluations).
 | FOPID | Paper figures | 1.52 | 1.34 | 1.95 | 1.29 | 1.58 | 1.10 |
 | FOPID | This work | 1.50 | 1.29 | 1.32 | 1.63 | 1.62 | 1.15 |
 | FBPA-FOPID | Paper figures | 1.37 | 1.25 | 1.43 | 1.36 | 1.06 | 1.08 |
-| FBPA-FOPID | This work | 1.08 | 1.05 | 1.08 | 1.01 | 1.08 | 1.02 |
-| FOPSO-GWO | This work | 1.04 | 1.08 | 1.04 | 1.02 | 1.02 | 1.01 |
+| FBPA-FOPID | This work | 1.36 | 1.24 | 1.41 | 1.41 | 1.06 | 1.02 |
+| FOPSO-GWO | This work | 1.16 | 1.24 | 1.01 | 1.06 | 1.01 | 1.12 |
 
 ### Sine MSE (rad^2)
 
@@ -146,8 +174,8 @@ Convergence: `convergence.png` (best cost against cost evaluations).
 | FOPID | Paper figures | 1.84e-02 | 1.91e-03 | 6.67e-03 | 1.17e-03 | 2.44e-02 | 4.06e-04 |
 | FOPID | This work | 1.42e-02 | 2.51e-03 | 1.98e-03 | 6.46e-04 | 1.36e-02 | 9.58e-05 |
 | FBPA-FOPID | Paper figures | 1.13e-02 | 1.40e-03 | 3.85e-03 | 1.42e-03 | 3.71e-03 | 3.37e-04 |
-| FBPA-FOPID | This work | 1.34e-03 | 1.70e-06 | 2.97e-04 | 1.27e-07 | 2.98e-07 | 6.64e-09 |
-| FOPSO-GWO | This work | 1.32e-04 | 2.33e-04 | 1.74e-06 | 4.07e-07 | 5.11e-06 | 9.03e-08 |
+| FBPA-FOPID | This work | 9.69e-03 | 1.15e-03 | 1.36e-03 | 1.20e-03 | 7.38e-10 | 1.22e-04 |
+| FOPSO-GWO | This work | 4.49e-03 | 2.64e-03 | 3.52e-04 | 2.08e-04 | 6.82e-05 | 9.95e-05 |
 
 ### Sine sum |tau| (Nm)
 
@@ -158,14 +186,12 @@ Convergence: `convergence.png` (best cost against cost evaluations).
 | FOPID | Paper figures | 1.442e+05 | 3.271e+04 | 3.338e+04 | 1.225e+04 | 1880 | 10.04 |
 | FOPID | This work | 2.12e+04 | 2.468e+04 | 1.033e+04 | 3131 | 2487 | 220.6 |
 | FBPA-FOPID | Paper figures | 9.094e+04 | 3.12e+04 | 2.224e+04 | 8262 | 1409 | 5.614 |
-| FBPA-FOPID | This work | 2.358e+04 | 2.751e+04 | 1.184e+04 | 2634 | 414.3 | 819.9 |
-| FOPSO-GWO | This work | 2.004e+04 | 2.498e+04 | 9520 | 1567 | 382.5 | 134.8 |
+| FBPA-FOPID | This work | 2.241e+04 | 2.527e+04 | 1.079e+04 | 1658 | 602 | 137.8 |
+| FOPSO-GWO | This work | 2.19e+04 | 2.517e+04 | 1.042e+04 | 1643 | 421.4 | 140.2 |
 
-## 5. Match to the published curves
+## 6. Match to the published curves
 
-rms of q (this work) - q (paper's figure), rad. FBPA-FOPID is not fitted to the paper's
-curves: it is the result of re-running the optimiser, so this row measures how close an
-independent FBPA run comes to the authors'.
+rms of q (this work) - q (paper's figure), rad.
 
 | Controller | Experiment | J1 | J2 | J3 | J4 | J5 | J6 | mean |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
@@ -173,10 +199,10 @@ independent FBPA run comes to the authors'.
 | PID | sine | 0.124 | 0.064 | 0.105 | 0.025 | 0.143 | 0.021 | 0.080 |
 | FOPID | step | 0.118 | 0.038 | 0.034 | 0.024 | 0.077 | 0.054 | 0.058 |
 | FOPID | sine | 0.050 | 0.046 | 0.069 | 0.016 | 0.108 | 0.019 | 0.051 |
-| FBPA-FOPID | step | 0.183 | 0.117 | 0.162 | 0.197 | 0.087 | 0.045 | 0.132 |
-| FBPA-FOPID | sine | 0.092 | 0.037 | 0.061 | 0.037 | 0.061 | 0.018 | 0.051 |
+| FBPA-FOPID | step | 0.026 | 0.027 | 0.038 | 0.053 | 0.052 | 0.044 | 0.040 |
+| FBPA-FOPID | sine | 0.038 | 0.018 | 0.050 | 0.015 | 0.061 | 0.015 | 0.033 |
 
-## 6. The paper's tables against its own figures
+## 7. The paper's tables against its own figures
 
 The same metrics recomputed from the paper's published curves (Figs 6-19, read from the
 PDF's vector graphics) do not fully agree with its tables.
@@ -196,7 +222,7 @@ FBPA / PID / FOPID values. The torque curves themselves are not outputs of the c
 law (spikes of up to 1e9 Nm in Fig. 12), so this work's torques, which are physically
 consistent, are much smaller. See docs/audit_report.md, Sect. 3.
 
-## 7. Gains
+## 8. Gains
 
 ### PID, step experiment
 
@@ -238,22 +264,32 @@ consistent, are much smaller. See docs/audit_report.md, Sect. 3.
 | lambda | 1.774 | 0.2692 | 1.95 | 1.07 | 1.948 | 0.8092 |
 | mu | 1.227 | 1.348 | 0.7744 | 1.387 | 1.75 | 1.275 |
 
-### FBPA-FOPID (both experiments)
+### FBPA-FOPID, step experiment
 
 | | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---:|---:|---:|---:|---:|---:|
-| Kp | 1903 | 9.997e+04 | 0.04385 | 1.2e+04 | 2155 | 1.483e+04 |
-| Ki | 269.1 | 1.843 | 16.98 | 210.5 | 0.3012 | 0.0002227 |
-| Kd | 69.43 | 722.1 | 997.8 | 0.6148 | 52.52 | 0.208 |
-| lambda | 1.798 | 0.6081 | 1.949 | 0.6449 | 0.1178 | 0.0585 |
-| mu | 1.155 | 0.3949 | 0.5965 | 1.8 | 0.9209 | 1.762 |
+| Kp | 0.0302 | 0.003118 | 36.34 | 99.23 | 0.01844 | 1633 |
+| Ki | 48.97 | 21.9 | 14.34 | 0.0002432 | 760.6 | 2.973e+04 |
+| Kd | 14.08 | 917.4 | 81.67 | 8.897 | 9.23 | 0.2295 |
+| lambda | 0.05003 | 1.949 | 0.4206 | 0.1691 | 0.9006 | 1.582 |
+| mu | 0.9999 | 0.5148 | 0.9999 | 0.4464 | 0.7844 | 1.747 |
+
+### FBPA-FOPID, sine experiment
+
+| | J1 | J2 | J3 | J4 | J5 | J6 |
+|---|---:|---:|---:|---:|---:|---:|
+| Kp | 364.8 | 3.334 | 0.002545 | 116.4 | 1.076e+05 | 0.3871 |
+| Ki | 582 | 1901 | 372.1 | 0.0003336 | 9221 | 1158 |
+| Kd | 169.7 | 1543 | 520.2 | 5.553 | 0.1541 | 186.6 |
+| lambda | 1.592 | 1.091 | 1.948 | 1.307 | 1.392 | 1.94 |
+| mu | 0.8398 | 0.4539 | 0.7758 | 1.406 | 1.91 | 0.5412 |
 
 ### FOPSO-GWO (both experiments)
 
 | | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---:|---:|---:|---:|---:|---:|
-| Kp | 1356 | 0.02271 | 0.1358 | 7104 | 0.1008 | 2883 |
-| Ki | 5.632 | 6372 | 9.941e+04 | 1.509 | 102.9 | 0.0001723 |
-| Kd | 982.6 | 964.8 | 944.2 | 5.21 | 369.4 | 0.6522 |
-| lambda | 1.483 | 0.5123 | 0.3503 | 0.6175 | 0.315 | 0.08313 |
-| mu | 0.892 | 0.818 | 0.5771 | 1.313 | 0.6203 | 1.598 |
+| Kp | 561.5 | 0.02776 | 0.03934 | 255.8 | 97.4 | 48.33 |
+| Ki | 19.09 | 100.5 | 1.081 | 3.311 | 0.2999 | 0.0003511 |
+| Kd | 91.45 | 747 | 880.1 | 5.666 | 20.67 | 0.2909 |
+| lambda | 1.578 | 0.5538 | 1.118 | 0.5768 | 0.6475 | 0.1035 |
+| mu | 0.9806 | 0.5356 | 0.6505 | 0.9957 | 0.9315 | 1.579 |

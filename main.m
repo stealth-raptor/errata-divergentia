@@ -352,10 +352,11 @@ T = results.FOPSO_GWO.tuning;
 if ~isfield(T, 'fitness') || ~isfield(T.fitness, 'whole') || isempty(T.fitness.whole), return; end
 W = T.fitness.whole;
 e = results.FOPSO_GWO.effort;
+scale = '';
+if W.cap_scale ~= 1, scale = sprintf(', times %g', W.cap_scale); end
 out('\nFOPSO-GWO was tuned with caps per joint: for the torque, the largest peak any of the\n');
-out('paper''s three controllers needs on that joint over all their identified gain sets (Nm,\n');
-out('x %g); for the overshoot, the worst joint of the paper''s own FBPA-FOPID figures (%%):\n\n', ...
-    W.cap_scale);
+out('paper''s three controllers needs on that joint over all their identified gain sets (Nm%s);\n', scale);
+out('for the overshoot, the worst joint of the paper''s own FBPA-FOPID figures (%%):\n\n');
 out('| | J1 | J2 | J3 | J4 | J5 | J6 |\n|---|---:|---:|---:|---:|---:|---:|\n');
 rows = {'Kick', W.cap.kick, e.step.kick; 'Step after kick', W.cap.step, e.step.peak; ...
         'Sine', W.cap.sine, e.sine.peak; ...
@@ -480,7 +481,8 @@ switch lower(name)
         if isfield(T, 'target'), target = upper(T.target); end
         if strcmpi(name, 'whole')
             s = ['whole-controller cost: tracking scored against the paper''s FBPA-FOPID with no ' ...
-                 'credit beyond twice as good, the torque it takes, and per-joint peak-torque caps (Sect. 3)'];
+                 'credit beyond twice as good, the torque it takes, and per-joint caps on the peak ' ...
+                 'torque and the overshoot (Sect. 3)'];
         elseif strcmp(target, 'FBPA')
             s = 'cost: both ITAEs, and the five paper metrics scored against the paper''s FBPA-FOPID';
         elseif strcmp(target, 'FBPA-ALL')
