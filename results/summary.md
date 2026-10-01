@@ -165,6 +165,30 @@ The best run of each, on the paper's metrics:
 
 Convergence: `convergence.png` (best cost against cost evaluations).
 
+### Why plain PSO wins: one change at a time
+
+`tools/ablate_optimizers.m` reruns the optimisers with one setting changed, under the
+same budget, seed controller, initial swarms and cost. The last column is the mean cost of
+the swarm's current positions over the last 25 iterations: unstable candidates score
+1e3-2e3, so a large value means the swarm is still scattered (or thrown about), a value
+near the best cost that it has collapsed onto one point.
+
+Cost `fbpa`:
+
+| Optimiser | runs | best | median | mean | worst | swarm, last 25 iterations |
+|---|---:|---:|---:|---:|---:|---:|
+| PSO, unmodified (c1 = c2 = 2, inertia 0.9 -> 0.4, \|v\| <= 0.2) | 4 | 0.3495 | 0.3842 | 0.3904 | 0.4437 | 397.1 |
+| PSO with c1 = c2 = 1 | 4 | 0.3596 | 0.5914 | 0.6314 | 0.9834 | 48.19 |
+| FOPSO-GWO, unmodified (c1 = c2 = c3 = 1, fractional memory, \|v\| <= 0.2) | 4 | 0.3916 | 0.4166 | 0.4249 | 0.4748 | 8.011 |
+| FOPSO-GWO with c1 = c2 = c3 = 2 | 4 | 0.4743 | 0.5112 | 0.6344 | 1.0411 | 1141 |
+| FO-PSO alone: FOPSO-GWO without the grey-wolf term, c1 = c2 = 2 | 4 | 0.3975 | 0.4374 | 0.4686 | 0.6023 | 738.6 |
+| FBPA, unmodified (c = 2, fractional memory, beetle, \|v\| <= 1) | 4 | 0.3856 | 0.5118 | 0.4858 | 0.5340 | 1312 |
+| FBPA with \|v\| <= 0.2 | 4 | 0.2775 | 0.3538 | 0.3524 | 0.4245 | 721.5 |
+
+FBPA with \|v\| <= 0.2 and FO-PSO alone are the same search: FBPA's beetle step (1e-4 of
+the range, shrinking to 6e-7) does not move the particles, so the two differ only in their
+random numbers. The gap between them is the run-to-run noise at this number of seeds.
+
 ## 5. Per joint
 
 ### Step overshoot (%)

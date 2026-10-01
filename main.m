@@ -534,13 +534,13 @@ end
 function report_ablation(out, abl, runs)
 %REPORT_ABLATION  Why plain PSO wins: the optimisers with one setting changed.
 if isempty(abl), return; end
-order = {'pso', 'PSO, unmodified (c1 = c2 = 2, inertia 0.9 -> 0.4, |v| <= 0.2)'
+order = {'pso', 'PSO, unmodified (c1 = c2 = 2, inertia 0.9 -> 0.4, \|v\| <= 0.2)'
          'pso_c1', 'PSO with c1 = c2 = 1'
-         'fopso_gwo', 'FOPSO-GWO, unmodified (c1 = c2 = c3 = 1, fractional memory, |v| <= 0.2)'
+         'fopso_gwo', 'FOPSO-GWO, unmodified (c1 = c2 = c3 = 1, fractional memory, \|v\| <= 0.2)'
          'fopso_gwo_c2', 'FOPSO-GWO with c1 = c2 = c3 = 2'
          'fopso_c2', 'FO-PSO alone: FOPSO-GWO without the grey-wolf term, c1 = c2 = 2'
-         'fbpa', 'FBPA, unmodified (c = 2, fractional memory, beetle, |v| <= 1)'
-         'fbpa_v02', 'FBPA with |v| <= 0.2'};
+         'fbpa', 'FBPA, unmodified (c = 2, fractional memory, beetle, \|v\| <= 1)'
+         'fbpa_v02', 'FBPA with \|v\| <= 0.2'};
 out('\n### Why plain PSO wins: one change at a time\n\n');
 out('`tools/ablate_optimizers.m` reruns the optimisers with one setting changed, under the\n');
 out('same budget, seed controller, initial swarms and cost. The last column is the mean cost of\n');
@@ -559,6 +559,11 @@ for c = unique({abl.cost})
         out('| %s | %d | %.4f | %.4f | %.4f | %.4f | %.4g |\n', order{i, 2}, numel(sel), ...
             min(J), median(J), mean(J), max(J), mean([sel.late]));
     end
+end
+if all(ismember({'fbpa_v02', 'fopso_c2'}, {abl.variant}))
+    out('\nFBPA with \\|v\\| <= 0.2 and FO-PSO alone are the same search: FBPA''s beetle step (1e-4 of\n');
+    out('the range, shrinking to 6e-7) does not move the particles, so the two differ only in their\n');
+    out('random numbers. The gap between them is the run-to-run noise at this number of seeds.\n');
 end
 end
 

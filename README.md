@@ -216,13 +216,61 @@ FOPSO-GWO head to head, same cost and random seed:
   evaluations. At equal evaluations FBPA is 2–9× worse. FBPA's best run beats FOPSO-GWO's
   under two of the four costs, by 1–2 %.
 
-A plausible reading, not tested here: PSO's stronger pull to the best points (c1 = c2 = 2
-against FOPSO-GWO's 1) pays off when the swarm starts next to a good controller and the cost is
-smooth tracking. The grey-wolf leaders' extra exploration pays off on the whole-controller
-cost, whose caps and penalties make the landscape much more rugged. The defensible claims are
-therefore: FOPSO-GWO beats FBPA, the paper's optimiser, at a third of its cost; and for the
-constrained whole-controller problem it found the best controller of the three optimisers.
-For unconstrained tracking costs, plain PSO with the same budget did better.
+#### Why plain PSO can beat the "improved" PSOs
+
+Both FBPA and FOPSO-GWO add to PSO, but adding to an optimiser does not make it better on every
+problem. Their improvements were shown on benchmark functions, from random starts, over long
+runs (the paper's Fig. 4: 500 iterations). Tuning this FOPID is a different problem: the swarm
+starts next to a good controller (the identified FOPID), the budget is 100 iterations, and
+most of the search space is unstable. What decides it is the balance between staying near the
+best points and exploring, and the classic PSO settings strike it well here. The ablation
+(`tools/ablate_optimizers.m`, cost `fbpa`, seeds 1–4, summary.md Sect. 4) changes one setting
+at a time:
+
+| Optimiser | mean cost | swarm, last 25 iterations |
+|---|---:|---:|
+| PSO (c = 2, inertia 0.9 → 0.4, \|v\| ≤ 0.2) | 0.390 | 397 (still exploring) |
+| PSO with c = 1 | 0.631 | 48 (collapsed) |
+| FOPSO-GWO (c = 1, fractional memory) | 0.425 | 8 (collapsed) |
+| FOPSO-GWO with c = 2 | 0.634 | 1141 (thrown about) |
+| FO-PSO alone (FOPSO-GWO without the wolves, c = 2) | 0.469 | 739 |
+| FBPA (the paper's \|v\| ≤ 1) | 0.486 | 1312 (thrown about) |
+| FBPA with \|v\| ≤ 0.2 | **0.352** | 722 |
+
+The swarm column is the mean cost of the particles' current positions: unstable candidates
+score 1e3–2e3, so a large value means the swarm is still spread over the search space, a small
+one that it has collapsed onto one point.
+
+1. **FBPA's beetle antennae do nothing here.** With the paper's step of 1e-4, shrinking by
+   0.95 per iteration to 6e-7, the beetle term moves a particle by about a thousandth of a
+   typical velocity. It costs two extra evaluations per particle and iteration and changes
+   nothing, so FBPA is effectively a fractional-order PSO at three times the cost.
+2. **FBPA's velocity limit throws its swarm about.** The paper's \|v\| ≤ 1 is in raw gain units;
+   in this search space it is the whole range, so particles jump from bound to bound (1312).
+   With PSO's \|v\| ≤ 0.2, the same FBPA becomes the best of all here (0.352 mean, with 9030
+   evaluations against 3030).
+3. **The fractional velocity memory drains momentum.** In the paper's Eq. 25 the weight on the
+   last velocity is w − 1 + α, which falls from 0.79 to −0.20 over the run, and the total over
+   the four remembered velocities from 0.86 to 0.03. PSO keeps an inertia of 0.9 to 0.4. On its
+   own, with everything else as in PSO (FO-PSO alone), the memory makes the result worse:
+   0.469 against 0.390.
+4. **FOPSO-GWO either collapses or is thrown about.** With its c = 1 the swarm has collapsed onto
+   one point by the last quarter (8); with c = 2 the grey-wolf term adds so much movement that
+   it never settles (1141). PSO with c = 1 collapses the same way and loses (0.631). So FOPSO-GWO's
+   c = 1 is the right choice for it, but it leaves the swarm with too little exploration on these
+   costs. On the whole-controller cost, where the caps and penalties make the landscape rugged,
+   the same behaviour is what found the best controller.
+5. **Four seeds are not enough to rank them precisely.** FBPA with \|v\| ≤ 0.2 and FO-PSO alone
+   are the same search, differing only in their random numbers (point 1), yet their means differ
+   by 0.12, with one seed 0.24 apart. The direction of the main results is consistent (PSO
+   beats FOPSO-GWO on 11 of 12 seed pairs on the tracking costs; FOPSO-GWO beats PSO on 6 of 8
+   on the whole cost), but the size of every gap is uncertain. A claim for a paper needs about
+   20–30 seeds per optimiser and a significance test.
+
+What the comparison supports, then: FOPSO-GWO beats the paper's FBPA as published, at a third
+of its evaluations, and found the best whole controller of the three. It does not support
+"FOPSO-GWO is a better PSO" in general. On tracking-only costs, plain PSO with its standard
+settings did better, and FOPSO-GWO's weakness there is premature collapse of the swarm.
 
 ### The algorithms
 
@@ -403,6 +451,7 @@ tune_fopid_hybrid.m         tunes the 30 FOPID parameters -> results/<optimizer>
 ├── pso.m                   plain PSO, the baseline
 └── fopid_fitness.m         cost of one gain set (ITAE + the paper's metrics)
 tools/compare_optimizers.m  PSO, FBPA, FOPSO-GWO x 4 costs x 4-8 seeds -> results/optimizer_runs/
+tools/ablate_optimizers.m   the same with one setting changed (why PSO wins) -> results/ablation_runs/
 
 simulate_mex.c              the closed-loop simulation in C, used automatically once built
 build_mex.m                 compiles it (mkoctfile in Octave, mex in MATLAB)
