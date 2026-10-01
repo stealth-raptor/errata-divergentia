@@ -402,6 +402,29 @@ for c = costs
         best(end+1) = struct('cost', c{1}, 'optimizer', o{1}, 'run', sel(b)); %#ok<AGROW>
     end
 end
+% head to head: same cost and random seed
+pairs = 0;  seed_wins = 0;  mean_wins = 0;  best_wins = 0;  equal_wins = 0;  nc = 0;
+for c = costs
+    A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FOPSO-GWO'));
+    B = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FBPA'));
+    if isempty(A) || isempty(B), continue; end
+    nc = nc + 1;
+    for a = A(:)'
+        k = find([B.seed] == a.seed, 1);
+        if isempty(k), continue; end
+        pairs = pairs + 1;
+        seed_wins = seed_wins + (a.J < B(k).J);
+    end
+    mean_wins  = mean_wins  + (mean([A.J]) < mean([B.J]));
+    best_wins  = best_wins  + (min([A.J]) < min([B.J]));
+    equal_wins = equal_wins + (mean(arrayfun(@(r) cost_after(r, budget), A)) < ...
+                               mean(arrayfun(@(r) cost_after(r, budget), B)));
+end
+out('\nHead to head, FOPSO-GWO reached the lower final cost on %d of %d seed and cost pairs, the\n', ...
+    seed_wins, pairs);
+out('lower mean under %d of %d costs and the lower best run under %d of %d. At equal evaluations\n', ...
+    mean_wins, nc, best_wins, nc);
+out('it had the lower mean under %d of %d costs.\n', equal_wins, nc);
 out('\nThe best run of each, on the paper''s metrics:\n\n');
 hdr = ['| Cost | Optimiser (seed) | ITAE step | ITAE sine | Overshoot (%) | Adjustment time (s) | ' ...
        'Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) | better than the paper''s FBPA-FOPID |'];
