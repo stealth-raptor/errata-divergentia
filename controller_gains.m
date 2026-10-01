@@ -3,7 +3,7 @@ function gains = controller_gains(controller, experiment)
 %
 %   gains = CONTROLLER_GAINS(controller)              one gain set for both experiments
 %   gains = CONTROLLER_GAINS(controller, experiment)  gain set for one experiment
-%     controller  'PID' (lambda = mu = 1) or 'FOPID'
+%     controller  'PID' (lambda = mu = 1), 'FOPID', or 'FOPSO_GWO'
 %     experiment  'step', 'sine', or 'shared' (the default)
 %
 %   Each field is 6x1, one entry per joint.  The paper publishes no gains.
@@ -23,9 +23,23 @@ function gains = controller_gains(controller, experiment)
 %                 closely (docs/audit_report.md, 4.3).  MAIN uses these by
 %                 default.
 %
-%   See also FOPID_CONTROLLER, ROBOT_PARAMS, MAIN.
+%   'FOPSO_GWO'   the FOPID re-tuned by the FO-PSO / grey-wolf hybrid
+%                 (TUNE_FOPID_HYBRID), read from results/fopso_gwo_gains.mat;
+%                 one gain set for both experiments, so EXPERIMENT is ignored.
+%
+%   See also FOPID_CONTROLLER, ROBOT_PARAMS, MAIN, TUNE_FOPID_HYBRID.
 
 if nargin < 2, experiment = 'shared'; end
+if strcmpi(controller, 'FOPSO_GWO')
+    file = fopso_gwo_file();
+    if ~exist(file, 'file')
+        error('controller_gains:untuned', 'no tuned gains in %s; run tune_fopid_hybrid first', file);
+    end
+    S = load(file, 'gains');
+    gains = S.gains;
+    return;
+end
+
 switch [upper(controller) '/' lower(experiment)]
     case 'PID/shared'
         % rms vs the published curves, joints 1-6 [rad]:
@@ -80,4 +94,10 @@ switch [upper(controller) '/' lower(experiment)]
     otherwise
         error('controller_gains:name', 'unknown controller/experiment ''%s/%s''', controller, experiment);
 end
+end
+
+% ------------------------------------------------------------------------
+function file = fopso_gwo_file()
+%FOPSO_GWO_FILE  Where TUNE_FOPID_HYBRID saves its gains.
+file = fullfile(fileparts(mfilename('fullpath')), 'results', 'fopso_gwo_gains.mat');
 end

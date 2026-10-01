@@ -6,13 +6,19 @@ function out = simulate_closed_loop(P, gains, reference, opt)
 %     gains      6x1 fields Kp, Ki, Kd, lambda, mu
 %     reference  'step'  1 rad on every joint at t = 1 s
 %                'sine'  sin(1.5 t) rad on every joint
-%     opt        optional: dt (1e-3), T (5), log_dt (0.01), t_step (1), omega (1.5)
+%     opt        optional: dt (1e-3), T (5), log_dt (0.01), t_step (1), omega (1.5),
+%                abort_err (Inf): stop early once any |error| exceeds this
+%                value; used by the gain tuner (FOPID_FITNESS) to discard
+%                unstable candidates quickly
 %
 %   Returns, sampled every log_dt seconds:
 %     out.t   1xN time vector
 %     out.r   6xN reference
 %     out.q   6xN joint angles
 %     out.u   6xN joint torques (controller output)
+%     out.diverged  true if the run stopped early (abort_err exceeded, or the
+%                   state became non-finite or exceeded 1e3 rad); the outputs
+%                   then hold only the samples actually run
 %
 %   The controllers run at the sample time dt with a zero-order hold and
 %   the plant is integrated between samples with a fourth-order Runge-Kutta
@@ -33,6 +39,7 @@ if ~isfield(opt, 'T'),      opt.T = 5;       end
 if ~isfield(opt, 'log_dt'), opt.log_dt = 0.01; end
 if ~isfield(opt, 't_step'), opt.t_step = 1;  end
 if ~isfield(opt, 'omega'),  opt.omega = 1.5; end
+if ~isfield(opt, 'abort_err'), opt.abort_err = Inf; end
 
 dt = opt.dt;
 Nt = round(opt.T / dt) + 1;
@@ -54,9 +61,15 @@ out.t = t(1:every:Nt);
 out.r = r(:, 1:every:Nt);
 out.q = zeros(6, nlog);
 out.u = zeros(6, nlog);
+out.diverged = false;
+j = 0;                                  % number of samples logged so far
 
 for k = 1:Nt
     e = r(:, k) - q;
+    if max(abs(e)) > opt.abort_err
+        out.diverged = true;
+        break;
+    end
     [u, C] = fopid_update(C, e);
 
     if mod(k - 1, every) == 0
@@ -74,11 +87,21 @@ for k = 1:Nt
     q  = q  + dt/6 * (k1q + 2*k2q + 2*k3q + k4q);
     qd = qd + dt/6 * (k1v + 2*k2v + 2*k3v + k4v);
 
-    if any(~isfinite(q)) || any(abs(q) > 1e3)
-        warning('simulate_closed_loop:unstable', 'closed loop diverged at t = %.3f s', t(k));
-        out.q(:, j+1:end) = NaN;
+    if any(~isfinite(q)) || any(~isfinite(qd)) || any(abs(q) > 1e3)
+        out.diverged = true;
+        if isinf(opt.abort_err)         % not a tuning run: worth a warning
+            warning('simulate_closed_loop:unstable', 'closed loop diverged at t = %.3f s', t(k));
+        end
         break;
     end
+end
+
+if out.diverged                         % keep only the samples actually run
+    keep = 1:max(j, 1);
+    out.t = out.t(keep);
+    out.r = out.r(:, keep);
+    out.q = out.q(:, keep);
+    out.u = out.u(:, keep);
 end
 end
 

@@ -18,7 +18,10 @@ def read_gains(path=os.path.join(HERE, '..', 'controller_gains.m')):
     src = open(path).read()
     out = {}
     for block in re.split(r"\n\s*case\s+", src)[1:]:
-        name = re.match(r"'([\w/]+)'", block).group(1)
+        m = re.match(r"'([\w/]+)'", block)
+        if not m or 'gains.Kp' not in block:      # e.g. a case that loads gains from a file
+            continue
+        name = m.group(1)
         g = {}
         for key in ('Kp', 'Ki', 'Kd', 'lambda', 'mu'):
             m = re.search(r"gains\.%s\s*=\s*\[([^\]]*)\]" % key, block)

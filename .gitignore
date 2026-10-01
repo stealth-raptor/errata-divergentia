@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 octave-workspace
+results/fopso_gwo_checkpoint.mat
+results/fopso_gwo_gains_prev.mat
