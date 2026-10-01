@@ -453,7 +453,9 @@ out('  and its random draws;\n');
 out('* the same cost function, conditioning check and early abort of unstable candidates;\n');
 out('* each algorithm with its standard or published coefficients: PSO c1 = c2 = 2 and inertia\n');
 out('  0.9 -> 0.4 (the paper''s improved PSO, Eqs. 23-24), FBPA the paper''s Sect. 4 settings,\n');
-out('  FOPSO-GWO c1 = c2 = c3 = 1; PSO and FOPSO-GWO limit |v| to 0.2 of each range, FBPA to 1;\n');
+out('  FOPSO-GWO its final settings (c1 = c2 = 1.5, c3 = 1, fractional order 0.9, chosen on\n');
+out('  separate development seeds, below); PSO and FOPSO-GWO limit |v| to 0.2 of each range,\n');
+out('  FBPA to 1;\n');
 out('* PSO and FOPSO-GWO evaluate the cost once per particle and iteration (%d evaluations), FBPA\n', budget);
 out('  three times (its beetle antennae).\n\n');
 out('The costs:\n\n');
@@ -513,6 +515,20 @@ if any(strcmp(names, 'FOPSO-GWO')) && numel(names) > 1
         end
         out('| %s | %d of %d | %d of %d | %d of %d | %d of %d |\n', o{1}, seed_wins, pairs, ...
             mean_wins, nc, best_wins, nc, equal_wins, nc);
+    end
+    others = names(~strcmp(names, 'FOPSO-GWO'));
+    out('\nPer cost, the random seeds on which FOPSO-GWO ends lower than ...\n\n');
+    out('| Cost |%s\n|---|%s\n', sprintf(' %s |', others{:}), repmat('---:|', 1, numel(others)));
+    for c = costs
+        out('| %s |', c{1});
+        A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FOPSO-GWO'));
+        for o = others
+            B = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, o{1}));
+            [~, a, b] = intersect([A.seed], [B.seed]);
+            if isempty(a), out(' |'); continue; end
+            out(' %d of %d |', sum([A(a).J] < [B(b).J]), numel(a));
+        end
+        out('\n');
     end
 end
 
