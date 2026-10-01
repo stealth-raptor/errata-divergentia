@@ -1,23 +1,26 @@
 function plot_convergence(runs, file)
-%PLOT_CONVERGENCE  Best cost against cost evaluations, FBPA vs FOPSO-GWO.
+%PLOT_CONVERGENCE  Best cost against cost evaluations: PSO, FBPA and FOPSO-GWO.
 %
 %   PLOT_CONVERGENCE(runs, file)  with runs as loaded by MAIN from
 %   results/optimizer_runs/ (TOOLS/COMPARE_OPTIMIZERS).  One panel per cost,
 %   one thin line per run, coloured by optimiser.  The x axis counts cost
 %   evaluations, not iterations, since FBPA's beetle antennae spend three
-%   evaluations per particle and iteration and FOPSO-GWO one.
+%   evaluations per particle and iteration, PSO and FOPSO-GWO one.
 %
 %   See also MAIN, PLOT_PAPER_FIGURES.
 
 costs  = {'paper',    'paper: step ITAE (Eq. 29), FOPID = 1'
           'fbpa',     'fbpa: paper metrics against the paper''s FBPA-FOPID'
-          'fbpa_all', 'fbpa\_all: against both FBPA-FOPIDs'};
+          'fbpa_all', 'fbpa\_all: against the paper''s and the best FBPA run'
+          'whole',    'whole: the whole-controller cost'};
 costs  = costs(ismember(costs(:, 1), {runs.cost}), :);
 nc = size(costs, 1);
-colour = struct('FBPA', [0 0 0], 'FOPSO_GWO', [0.85 0 0.85]);
-fig = figure('Visible', 'off', 'Position', [100 100 550*nc 420], 'Color', 'w');
+ncol = min(nc, 2);
+nrow = ceil(nc / ncol);
+colour = struct('PSO', [0 0.6 0], 'FBPA', [0 0 0], 'FOPSO_GWO', [0.85 0 0.85]);
+fig = figure('Visible', 'off', 'Position', [100 100 550*ncol 420*nrow], 'Color', 'w');
 for c = 1:nc
-    subplot(1, nc, c); hold on; grid on; box on;
+    subplot(nrow, ncol, c); hold on; grid on; box on;
     sel = runs(strcmp({runs.cost}, costs{c, 1}));
     handles = [];  labels = {};
     for r = sel(:)'

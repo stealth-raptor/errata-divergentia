@@ -1,10 +1,10 @@
 function compare_optimizers(seeds, optimizers, costs)
-%COMPARE_OPTIMIZERS  FBPA against FOPSO-GWO under the same cost, seeds and budget.
+%COMPARE_OPTIMIZERS  PSO, FBPA and FOPSO-GWO under the same cost, seeds and budget.
 %
-%   COMPARE_OPTIMIZERS()                       seeds 1-4, both optimisers, all costs
+%   COMPARE_OPTIMIZERS()                       seeds 1-4, all optimisers, all costs
 %   COMPARE_OPTIMIZERS(seeds, optimizers, costs)
 %     seeds       random seeds, e.g. 1:4
-%     optimizers  cell of 'FBPA', 'FOPSO-GWO'
+%     optimizers  cell of 'PSO', 'FBPA', 'FOPSO-GWO'
 %     costs       cell of
 %                   'paper'     the paper's fitness: step ITAE (Eq. 29)
 %                   'fbpa'      this work's cost: ITAE of both experiments and
@@ -16,32 +16,37 @@ function compare_optimizers(seeds, optimizers, costs)
 %                               results/fbpa_gains.mat, metric by metric
 %                               (Target 'FBPA-all'; needs that file, and is
 %                               left out of the default costs without it)
+%                   'whole'     the whole-controller cost FOPSO-GWO's final
+%                               controller is tuned with (Fitness 'whole'):
+%                               tracking, torque, and per-joint caps
 %
 %   Every optimiser x cost x seed is one TUNE_FOPID_HYBRID run with the
 %   paper's budget (30 particles x 100 iterations), the same search space,
 %   the same seed (the identified FOPID) and, for the same random seed, the
-%   same initial swarm.  Each result is saved to
+%   same initial swarm.  PSO and FOPSO-GWO spend one cost evaluation per
+%   particle and iteration (3030 per run), FBPA three (9030).  Each result is saved to
 %   results/optimizer_runs/<optimizer>_<cost>_seed<k>.mat; MAIN tabulates
 %   them and plots the convergence.  MAIN shows as FBPA-FOPID and FOPSO-GWO
 %   whatever is in results/fbpa_gains.mat and results/fopso_gwo_gains.mat;
 %   in this repository those are copies of the best FBPA run under the
-%   paper's fitness and the best FOPSO-GWO run under 'fbpa_all' (the same
+%   paper's fitness and the best FOPSO-GWO run under 'whole' (the same
 %   files the stand-alone TUNE_FOPID_HYBRID call with that RandomSeed
 %   writes).  Run the 'fbpa_all' cost after results/fbpa_gains.mat is in
 %   place.
 %
-%   Runtime with the compiled simulation: about 6 min per FOPSO-GWO run and
-%   10 min per FBPA run (its antennae triple the evaluations).  The runs
+%   Runtime with the compiled simulation: about 6 min per PSO or FOPSO-GWO
+%   run and 10-20 min per FBPA run (its antennae triple the evaluations).  The runs
 %   are independent, so several Octave processes can share the work, e.g.
 %   one per seed:  octave --eval "addpath tools; compare_optimizers(2)"
 %
 %   See also TUNE_FOPID_HYBRID, FBPA, HYBRID_FOPSO_GWO, MAIN.
 
 if nargin < 1 || isempty(seeds),      seeds = 1:4; end
-if nargin < 2 || isempty(optimizers), optimizers = {'FBPA', 'FOPSO-GWO'}; end
+if nargin < 2 || isempty(optimizers), optimizers = {'PSO', 'FBPA', 'FOPSO-GWO'}; end
 if nargin < 3 || isempty(costs)
     costs = {'paper', 'fbpa'};
     if exist(fullfile('results', 'fbpa_gains.mat'), 'file'), costs{end+1} = 'fbpa_all'; end
+    costs{end+1} = 'whole';
 end
 
 root = fileparts(fileparts(mfilename('fullpath')));
@@ -63,6 +68,7 @@ for s = seeds
                 case 'paper',    opts.Fitness = 'itae';
                 case 'fbpa',     opts.Fitness = 'composite';  opts.Target = 'FBPA';
                 case 'fbpa_all', opts.Fitness = 'composite';  opts.Target = 'FBPA-all';
+                case 'whole',    opts.Fitness = 'whole';
                 otherwise, error('compare_optimizers:cost', 'unknown cost ''%s''', c{1});
             end
             fprintf('\n===== %s =====\n', stem);

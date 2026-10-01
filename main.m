@@ -152,7 +152,7 @@ runs = struct('optimizer', {}, 'cost', {}, 'seed', {}, 'J', {}, 'evaluations', {
 if ~exist(folder, 'dir'), return; end
 d = dir(fullfile(folder, '*_seed*.mat'));
 for f = d(:)'
-    tok = regexp(f.name, '_(paper|fbpa_all|fbpa)_seed(\d+)\.mat$', 'tokens', 'once');
+    tok = regexp(f.name, '_(paper|fbpa_all|fbpa|whole)_seed(\d+)\.mat$', 'tokens', 'once');
     if isempty(tok), continue; end
     S = load(fullfile(folder, f.name));
     r.optimizer   = S.optimizer;
@@ -372,75 +372,87 @@ end
 
 % ------------------------------------------------------------------------
 function report_optimizers(out, runs, paper, rerun)
-%REPORT_OPTIMIZERS  FBPA against FOPSO-GWO under the same costs, seeds and budget.
+%REPORT_OPTIMIZERS  PSO, FBPA and FOPSO-GWO under the same costs, seeds and budget.
 %   rerun: the five paper metrics of the FBPA-FOPID shown in Sects 1-2 ([] if none).
-costs = {'paper', 'fbpa', 'fbpa_all'};
+costs = {'paper', 'fbpa', 'fbpa_all', 'whole'};
 costs = costs(ismember(costs, {runs.cost}));
-seeds = unique([runs.seed]);
-budget = min([runs.evaluations]);                  % FOPSO-GWO's evaluations per run
-out('\n## 4. The FBPA and FOPSO-GWO optimisers: same costs, seeds and budget\n\n');
-out('Each optimiser was run with random seeds %s under %d costs (`tools/compare_optimizers.m`),\n', ...
-    strjoin(arrayfun(@num2str, seeds, 'UniformOutput', false), ', '), numel(costs));
-out('with the paper''s budget of 30 particles x 100 iterations, the same search space, the same\n');
-out('seed (the identified FOPID) and, for each random seed, the same initial swarm:\n\n');
+names = {'PSO', 'FBPA', 'FOPSO-GWO'};
+names = names(ismember(names, {runs.optimizer}));
+budget = min([runs.evaluations]);                  % one evaluation per particle and iteration
+out('\n## 4. The optimisers: PSO, FBPA and FOPSO-GWO under the same costs, seeds and budget\n\n');
+out('`tools/compare_optimizers.m` runs %s under %d costs. For a fair comparison\n', ...
+    strjoin(names, ', '), numel(costs));
+out('everything but the algorithm is the same:\n\n');
+out('* 30 particles x 100 iterations (the paper''s FBPA budget), the same search space and the\n');
+out('  same seed controller (the identified FOPID);\n');
+out('* for each random seed the same initial swarm: the optimisers share the initialisation code\n');
+out('  and its random draws;\n');
+out('* the same cost function, conditioning check and early abort of unstable candidates;\n');
+out('* each algorithm with its standard or published coefficients: PSO c1 = c2 = 2 and inertia\n');
+out('  0.9 -> 0.4 (the paper''s improved PSO, Eqs. 23-24), FBPA the paper''s Sect. 4 settings,\n');
+out('  FOPSO-GWO c1 = c2 = c3 = 1; PSO and FOPSO-GWO limit |v| to 0.2 of each range, FBPA to 1;\n');
+out('* PSO and FOPSO-GWO evaluate the cost once per particle and iteration (%d evaluations), FBPA\n', budget);
+out('  three times (its beetle antennae).\n\n');
+out('The costs:\n\n');
 out('* **paper:** the paper''s fitness, ITAE of the step response (Eq. 29), relative to the FOPID\n');
 out('  (the FOPID scores 1).\n');
-out('* **fbpa:** this work''s cost: both ITAEs relative to the FOPID and the five paper metrics\n');
-out('  relative to the paper''s FBPA-FOPID, with a penalty on every metric not better than it.\n');
+out('* **fbpa:** both ITAEs relative to the FOPID and the five paper metrics relative to the\n');
+out('  paper''s FBPA-FOPID, with a penalty on every metric not better than it.\n');
 if any(strcmp(costs, 'fbpa_all'))
     out('* **fbpa_all:** the same, with each paper metric scored against the better of the paper''s\n');
-    out('  FBPA-FOPID and the best FBPA run under the paper''s fitness (`results/fbpa_gains.mat`),\n');
-    out('  so a ratio below 1 on a metric means beating both.\n');
+    out('  FBPA-FOPID and the best FBPA run under the paper''s fitness (`results/fbpa_gains.mat`).\n');
 end
-out('\nLower is better. FBPA''s beetle antennae cost two extra evaluations per particle and\n');
-out('iteration, so for the same 100 iterations it uses three times the evaluations of FOPSO-GWO.\n');
-out('The last column compares at equal evaluations: the best cost each run had reached after\n');
-out('%d evaluations (FOPSO-GWO''s whole run, FBPA''s first %d iterations).\n\n', budget, ...
-    floor((budget - 30) / 90));
-out('| Cost | Optimiser | %s | mean | best | evaluations per run | mean after %d evaluations |\n', ...
-    strjoin(arrayfun(@(s) sprintf('seed %d', s), seeds, 'UniformOutput', false), ' | '), budget);
-out('|---|---|%s---:|---:|---:|---:|\n', repmat('---:|', 1, numel(seeds)));
+if any(strcmp(costs, 'whole'))
+    out('* **whole:** the whole-controller cost of this work''s final controller (Sect. 3).\n');
+end
+out('\nFinal best cost (lower is better), over the random seeds run; the last column compares at\n');
+out('equal evaluations, the best cost each run had reached after %d evaluations (FBPA''s first\n', budget);
+out('%d iterations).\n\n', floor((budget - 30) / 90));
+out('| Cost | Optimiser | runs | best | median | mean | worst | mean after %d evaluations |\n', budget);
+out('|---|---|---:|---:|---:|---:|---:|---:|\n');
 best = struct('cost', {}, 'optimizer', {}, 'run', {});
 for c = costs
-    for o = {'FBPA', 'FOPSO-GWO'}
+    for o = names
         sel = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, o{1}));
         if isempty(sel), continue; end
-        cells = cell(1, numel(seeds));
-        wins = 0;
-        for s = 1:numel(seeds)
-            k = find([sel.seed] == seeds(s), 1);
-            if isempty(k), cells{s} = '-'; else, cells{s} = sprintf('%.4f', sel(k).J); end
-        end
+        J = [sel.J];
         at_budget = arrayfun(@(r) cost_after(r, budget), sel);
-        [~, b] = min([sel.J]);
-        out('| %s | %s | %s | %.4f | %.4f | %d | %.4f |\n', c{1}, o{1}, strjoin(cells, ' | '), ...
-            mean([sel.J]), sel(b).J, sel(b).evaluations, mean(at_budget));
+        [~, b] = min(J);
+        out('| %s | %s | %d | %.4f | %.4f | %.4f | %.4f | %.4f |\n', c{1}, o{1}, numel(sel), ...
+            min(J), median(J), mean(J), max(J), mean(at_budget));
         best(end+1) = struct('cost', c{1}, 'optimizer', o{1}, 'run', sel(b)); %#ok<AGROW>
     end
 end
-% head to head: same cost and random seed
-pairs = 0;  seed_wins = 0;  mean_wins = 0;  best_wins = 0;  equal_wins = 0;  nc = 0;
-for c = costs
-    A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FOPSO-GWO'));
-    B = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FBPA'));
-    if isempty(A) || isempty(B), continue; end
-    nc = nc + 1;
-    for a = A(:)'
-        k = find([B.seed] == a.seed, 1);
-        if isempty(k), continue; end
-        pairs = pairs + 1;
-        seed_wins = seed_wins + (a.J < B(k).J);
+
+% head to head: FOPSO-GWO against each other optimiser, same cost and random seed
+if any(strcmp(names, 'FOPSO-GWO')) && numel(names) > 1
+    out('\nHead to head, FOPSO-GWO against each of the others (same cost and random seed):\n\n');
+    out('| FOPSO-GWO against | seed and cost pairs with the lower final cost | costs with the lower mean | ');
+    out('costs with the lower best run | costs with the lower mean at %d evaluations |\n', budget);
+    out('|---|---:|---:|---:|---:|\n');
+    for o = names(~strcmp(names, 'FOPSO-GWO'))
+        pairs = 0;  seed_wins = 0;  mean_wins = 0;  best_wins = 0;  equal_wins = 0;  nc = 0;
+        for c = costs
+            A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FOPSO-GWO'));
+            B = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, o{1}));
+            if isempty(A) || isempty(B), continue; end
+            nc = nc + 1;
+            for a = A(:)'
+                k = find([B.seed] == a.seed, 1);
+                if isempty(k), continue; end
+                pairs = pairs + 1;
+                seed_wins = seed_wins + (a.J < B(k).J);
+            end
+            mean_wins  = mean_wins  + (mean([A.J]) < mean([B.J]));
+            best_wins  = best_wins  + (min([A.J]) < min([B.J]));
+            equal_wins = equal_wins + (mean(arrayfun(@(r) cost_after(r, budget), A)) < ...
+                                       mean(arrayfun(@(r) cost_after(r, budget), B)));
+        end
+        out('| %s | %d of %d | %d of %d | %d of %d | %d of %d |\n', o{1}, seed_wins, pairs, ...
+            mean_wins, nc, best_wins, nc, equal_wins, nc);
     end
-    mean_wins  = mean_wins  + (mean([A.J]) < mean([B.J]));
-    best_wins  = best_wins  + (min([A.J]) < min([B.J]));
-    equal_wins = equal_wins + (mean(arrayfun(@(r) cost_after(r, budget), A)) < ...
-                               mean(arrayfun(@(r) cost_after(r, budget), B)));
 end
-out('\nHead to head, FOPSO-GWO reached the lower final cost on %d of %d seed and cost pairs, the\n', ...
-    seed_wins, pairs);
-out('lower mean under %d of %d costs and the lower best run under %d of %d. At equal evaluations\n', ...
-    mean_wins, nc, best_wins, nc);
-out('it had the lower mean under %d of %d costs.\n', equal_wins, nc);
+
 out('\nThe best run of each, on the paper''s metrics:\n\n');
 hdr = ['| Cost | Optimiser (seed) | ITAE step | ITAE sine | Overshoot (%) | Adjustment time (s) | ' ...
        'Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) | better than the paper''s FBPA-FOPID |'];

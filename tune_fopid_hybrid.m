@@ -1,5 +1,5 @@
 function tuned = tune_fopid_hybrid(opts)
-%TUNE_FOPID_HYBRID  Tune the six FOPID controllers with FOPSO-GWO or the paper's FBPA.
+%TUNE_FOPID_HYBRID  Tune the six FOPID controllers with FOPSO-GWO, the paper's FBPA or PSO.
 %
 %   tuned = TUNE_FOPID_HYBRID()        FOPSO-GWO, paper budget: 30 particles x 100 iterations
 %   tuned = TUNE_FOPID_HYBRID(opts)    override any option below
@@ -12,10 +12,12 @@ function tuned = tune_fopid_hybrid(opts)
 %     Optimizer = 'FBPA'       FBPA, the paper's optimiser, with the paper's
 %                              settings and, by default, its fitness (step
 %                              ITAE, Eq. 29) -> results/fbpa_gains.mat
+%     Optimizer = 'PSO'        plain PSO (PSO), the baseline both improve on
+%                              -> results/pso_gains.mat
 %   CONTROLLER_GAINS('FOPSO_GWO') and CONTROLLER_GAINS('FBPA') read those
 %   files, and MAIN then adds the tuned controllers to the comparison and the
-%   figures.  The two optimisers share the search space, the seed and, for
-%   the same RandomSeed, the initial swarm.
+%   figures.  The optimisers share the search space, the seed and, for the
+%   same RandomSeed, the initial swarm.
 %
 %   Search space. The gains span eight orders of magnitude, so Kp, Ki and Kd
 %   are searched on a log10 scale; lambda and mu linearly. Everything is
@@ -90,9 +92,9 @@ function tuned = tune_fopid_hybrid(opts)
 %       baseline is in the swarm.
 %
 %   Options (besides those of HYBRID_FOPSO_GWO or FBPA, which are passed through):
-%     Optimizer    'FOPSO-GWO' (default) or 'FBPA'
+%     Optimizer    'FOPSO-GWO' (default), 'FBPA' or 'PSO'
 %     Fitness      'composite', 'torque', 'itae' or 'whole'; default
-%                  'composite' for FOPSO-GWO and 'itae' (the paper's) for FBPA
+%                  'composite' for FOPSO-GWO and PSO, 'itae' (the paper's) for FBPA
 %     Weights      1x8 weights of FOPID_FITNESS (overrides Fitness)
 %     Target       'baseline' (default), 'FBPA' or 'FBPA-all', see above
 %     Robust       penalise numerically ill-conditioned closed loops (see
@@ -209,10 +211,10 @@ opt_opts.CheckpointTag = {opts.Optimizer, fit.weights, fit.regret, fit.time_offs
 
 fprintf('%s: %d particles x %d iterations, 30 parameters, fitness ''%s'', start %s\n', ...
         opts.Optimizer, opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness, strjoin(opts.Start, ' + '));
-if strcmpi(opts.Optimizer, 'FBPA')
-    [z_best, info] = fbpa(cost, B.n, opt_opts);
-else
-    [z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
+switch opts.Optimizer
+    case 'FBPA', [z_best, info] = fbpa(cost, B.n, opt_opts);
+    case 'PSO',  [z_best, info] = pso(cost, B.n, opt_opts);
+    otherwise,   [z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
 end
 
 gains = decode(z_best, B);
@@ -355,6 +357,7 @@ if ~isfield(opts, 'Optimizer'), opts.Optimizer = 'FOPSO-GWO'; end
 switch upper(strrep(opts.Optimizer, '_', '-'))
     case 'FOPSO-GWO', opts.Optimizer = 'FOPSO-GWO';  fitness = 'composite';
     case 'FBPA',      opts.Optimizer = 'FBPA';       fitness = 'itae';
+    case 'PSO',       opts.Optimizer = 'PSO';        fitness = 'composite';
     otherwise, error('tune_fopid_hybrid:optimizer', 'unknown optimizer ''%s''', opts.Optimizer);
 end
 stem = lower(strrep(opts.Optimizer, '-', '_'));
