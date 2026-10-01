@@ -46,6 +46,10 @@ function tuned = tune_fopid_hybrid(opts)
 %   ITAE terms stay relative to the FOPID baseline.  The reported metrics are
 %   unchanged.  Aiming to beat FBPA on every metric:
 %     tune_fopid_hybrid(struct('Target', 'FBPA'))
+%   Target = 'FBPA-all' scores against every FBPA-FOPID available: for each
+%   paper metric, the better of the paper's value and that of the FBPA re-run
+%   on this arm (results/fbpa_gains.mat, from Optimizer = 'FBPA'), so the
+%   result must beat both to score below 1 on it.
 %
 %   Reducing torque from an already tuned controller, comparing against the
 %   original FOPID but starting from the FO-PSO/GWO gains:
@@ -74,12 +78,12 @@ function tuned = tune_fopid_hybrid(opts)
 %     Fitness      'composite', 'torque' or 'itae'; default 'composite' for
 %                  FOPSO-GWO and 'itae' (the paper's) for FBPA
 %     Weights      1x8 weights of FOPID_FITNESS (overrides Fitness)
-%     Target       'baseline' (default) or 'FBPA', see above
+%     Target       'baseline' (default), 'FBPA' or 'FBPA-all', see above
 %     Robust       penalise numerically ill-conditioned closed loops (see
 %                  FOPID_FITNESS); default true when SIMULATE_MEX is built,
 %                  since it doubles the cost of a candidate
 %     Regret       extra weight on metrics worse than the reference (default
-%                  1, or 2 with Target = 'FBPA')
+%                  1, or 2 with Target = 'FBPA' or 'FBPA-all')
 %     Baseline     CONTROLLER_GAINS name the cost is normalised by (it
 %                  scores 1), default 'FOPID'
 %     Start        cell array of CONTROLLER_GAINS names put into the initial
@@ -120,7 +124,7 @@ fit.time_offset = 0;
 fit.robust = opts.Robust;
 switch upper(opts.Target)
     case 'BASELINE'
-    case 'FBPA'
+    case {'FBPA', 'FBPA-ALL'}
         fit.time_offset = 1;                     % the step instant
         if strcmpi(opts.Fitness, 'composite'), fit.weights = [0.5 0.5 1 1 1 1 1 0]; end
         if ~user_regret, fit.regret = 2; end
@@ -139,9 +143,20 @@ print_metrics(opts.Baseline, base_raw);
 
 ref = base_raw;                                  % what the cost is normalised by
 ref_name = opts.Baseline;
-if strcmpi(opts.Target, 'FBPA')
-    ref(3:7) = [22.1 1.43 1.09 3.7e-3 2.3154e4]; % paper Tables 3 and 4, FBPA-FOPID
-    ref_name = 'FBPA target';
+paper_fbpa = [22.1 1.43 1.09 3.7e-3 2.3154e4];   % paper Tables 3 and 4, FBPA-FOPID
+switch upper(opts.Target)
+    case 'FBPA'
+        ref(3:7) = paper_fbpa;
+        ref_name = 'FBPA target';
+    case 'FBPA-ALL'
+        file = fullfile('results', 'fbpa_gains.mat');
+        if ~exist(file, 'file')
+            error('tune_fopid_hybrid:target', ...
+                  'Target ''FBPA-all'' needs %s; run tune_fopid_hybrid(struct(''Optimizer'', ''FBPA'')) first', file);
+        end
+        F = load(file, 'metrics');
+        ref(3:7) = min(paper_fbpa, F.metrics(3:7));
+        ref_name = 'FBPA target';
 end
 
 cost = @(z) fopid_fitness(P, decode(z, B), ref, fit);
@@ -176,7 +191,7 @@ gains = decode(z_best, B);
 [J, raw] = fopid_fitness(P, gains, ref, fit);
 fprintf('\nBest cost %.4f (%s = 1)\n', J, ref_name);
 print_comparison(opts.Optimizer, opts.Baseline, base_raw, raw);
-if strcmpi(opts.Target, 'FBPA')
+if ~strcmpi(opts.Target, 'baseline')
     print_comparison(opts.Optimizer, 'FBPA target', ref, raw);
 end
 

@@ -151,7 +151,7 @@ runs = struct('optimizer', {}, 'cost', {}, 'seed', {}, 'J', {}, 'evaluations', {
 if ~exist(folder, 'dir'), return; end
 d = dir(fullfile(folder, '*_seed*.mat'));
 for f = d(:)'
-    tok = regexp(f.name, '_(paper|fbpa)_seed(\d+)\.mat$', 'tokens', 'once');
+    tok = regexp(f.name, '_(paper|fbpa_all|fbpa)_seed(\d+)\.mat$', 'tokens', 'once');
     if isempty(tok), continue; end
     S = load(fullfile(folder, f.name));
     r.optimizer   = S.optimizer;
@@ -275,7 +275,9 @@ end
 
 % ---- 3. optimiser comparison ---------------------------------------------
 if ~isempty(runs)
-    report_optimizers(out, runs, paper);
+    rerun = [];
+    if has('FBPA'), rerun = results.FBPA.summary; end
+    report_optimizers(out, runs, paper, rerun);
 end
 
 % ---- 4. per joint --------------------------------------------------------
@@ -353,52 +355,79 @@ fclose(fid);
 end
 
 % ------------------------------------------------------------------------
-function report_optimizers(out, runs, paper)
+function report_optimizers(out, runs, paper, rerun)
 %REPORT_OPTIMIZERS  FBPA against FOPSO-GWO under the same costs, seeds and budget.
+%   rerun: the five paper metrics of the FBPA-FOPID shown in Sects 1-2 ([] if none).
+costs = {'paper', 'fbpa', 'fbpa_all'};
+costs = costs(ismember(costs, {runs.cost}));
+seeds = unique([runs.seed]);
+budget = min([runs.evaluations]);                  % FOPSO-GWO's evaluations per run
 out('\n## 3. FBPA against FOPSO-GWO: same costs, seeds and budget\n\n');
-out('Each optimiser was run with random seeds %s under two costs (`tools/compare_optimizers.m`),\n', ...
-    strjoin(arrayfun(@num2str, unique([runs.seed]), 'UniformOutput', false), ', '));
+out('Each optimiser was run with random seeds %s under %d costs (`tools/compare_optimizers.m`),\n', ...
+    strjoin(arrayfun(@num2str, seeds, 'UniformOutput', false), ', '), numel(costs));
 out('with the paper''s budget of 30 particles x 100 iterations, the same search space, the same\n');
 out('seed (the identified FOPID) and, for each random seed, the same initial swarm:\n\n');
 out('* **paper:** the paper''s fitness, ITAE of the step response (Eq. 29), relative to the FOPID\n');
-out('  (the FOPID scores 1);\n');
+out('  (the FOPID scores 1).\n');
 out('* **fbpa:** this work''s cost: both ITAEs relative to the FOPID and the five paper metrics\n');
-out('  relative to the paper''s FBPA-FOPID, with a penalty on every metric not better than it.\n\n');
-out('Lower is better. FBPA''s beetle antennae cost two extra evaluations per particle and\n');
-out('iteration, so it uses three times the evaluations of FOPSO-GWO for the same iterations.\n\n');
-seeds = unique([runs.seed]);
-out('| Cost | Optimiser | %s | mean | best | evaluations per run |\n', ...
-    strjoin(arrayfun(@(s) sprintf('seed %d', s), seeds, 'UniformOutput', false), ' | '));
-out('|---|---|%s---:|---:|---:|\n', repmat('---:|', 1, numel(seeds)));
+out('  relative to the paper''s FBPA-FOPID, with a penalty on every metric not better than it.\n');
+if any(strcmp(costs, 'fbpa_all'))
+    out('* **fbpa_all:** the same, with each paper metric scored against the better of the paper''s\n');
+    out('  FBPA-FOPID and the FBPA-FOPID re-run here (Sect. 1), so a ratio below 1 on a metric\n');
+    out('  means beating both.\n');
+end
+out('\nLower is better. FBPA''s beetle antennae cost two extra evaluations per particle and\n');
+out('iteration, so for the same 100 iterations it uses three times the evaluations of FOPSO-GWO.\n');
+out('The last column compares at equal evaluations: the best cost each run had reached after\n');
+out('%d evaluations (FOPSO-GWO''s whole run, FBPA''s first %d iterations).\n\n', budget, ...
+    floor((budget - 30) / 90));
+out('| Cost | Optimiser | %s | mean | best | evaluations per run | mean after %d evaluations |\n', ...
+    strjoin(arrayfun(@(s) sprintf('seed %d', s), seeds, 'UniformOutput', false), ' | '), budget);
+out('|---|---|%s---:|---:|---:|---:|\n', repmat('---:|', 1, numel(seeds)));
 best = struct('cost', {}, 'optimizer', {}, 'run', {});
-for c = {'paper', 'fbpa'}
+for c = costs
     for o = {'FBPA', 'FOPSO-GWO'}
         sel = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, o{1}));
         if isempty(sel), continue; end
         cells = cell(1, numel(seeds));
+        wins = 0;
         for s = 1:numel(seeds)
             k = find([sel.seed] == seeds(s), 1);
             if isempty(k), cells{s} = '-'; else, cells{s} = sprintf('%.4f', sel(k).J); end
         end
+        at_budget = arrayfun(@(r) cost_after(r, budget), sel);
         [~, b] = min([sel.J]);
-        out('| %s | %s | %s | %.4f | %.4f | %d |\n', c{1}, o{1}, strjoin(cells, ' | '), ...
-            mean([sel.J]), sel(b).J, sel(b).evaluations);
+        out('| %s | %s | %s | %.4f | %.4f | %d | %.4f |\n', c{1}, o{1}, strjoin(cells, ' | '), ...
+            mean([sel.J]), sel(b).J, sel(b).evaluations, mean(at_budget));
         best(end+1) = struct('cost', c{1}, 'optimizer', o{1}, 'run', sel(b)); %#ok<AGROW>
     end
 end
 out('\nThe best run of each, on the paper''s metrics:\n\n');
-out('| Cost | Optimiser (seed) | ITAE step | ITAE sine | %s | better than the paper''s FBPA-FOPID |\n', ...
-    'Overshoot (%) | Adjustment time (s) | Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm)');
-out('|---|---|---:|---:|---:|---:|---:|---:|---:|:---:|\n');
+hdr = ['| Cost | Optimiser (seed) | ITAE step | ITAE sine | Overshoot (%) | Adjustment time (s) | ' ...
+       'Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) | better than the paper''s FBPA-FOPID |'];
+sep = '|---|---|---:|---:|---:|---:|---:|---:|---:|:---:|';
+if ~isempty(rerun)
+    hdr = [hdr ' better than FBPA-FOPID (this work) |'];
+    sep = [sep ':---:|'];
+end
+out('%s\n%s\n', hdr, sep);
 f7 = {'%.4g', '%.4g', '%.1f', '%.3f', '%.3f', '%.3e', '%.4g'};
 for i = 1:numel(best)
     m = best(i).run.metrics;
-    out('| %s | %s (%d) | %s | %d of 5 |\n', best(i).cost, best(i).optimizer, best(i).run.seed, ...
-        row(f7, m(1:7)), sum(m(3:7) < paper.FBPA));
+    cells = {sprintf('%d of 5', sum(m(3:7) < paper.FBPA))};
+    if ~isempty(rerun), cells{end+1} = sprintf('%d of 5', sum(m(3:7) < rerun)); end %#ok<AGROW>
+    out('| %s | %s (%d) | %s | %s |\n', best(i).cost, best(i).optimizer, best(i).run.seed, ...
+        row(f7, m(1:7)), strjoin(cells, ' | '));
 end
-out('\nSections 1 and 2 use the best run of each optimiser under its own cost: FBPA under the\n');
-out('paper''s fitness, FOPSO-GWO under this work''s cost. Convergence: `convergence.png` (best\n');
-out('cost against cost evaluations).\n');
+out('\nConvergence: `convergence.png` (best cost against cost evaluations).\n');
+end
+
+function J = cost_after(r, budget)
+%COST_AFTER  Best cost of run r after BUDGET cost evaluations (NaN before the first iteration).
+K = numel(r.history);
+per_iter = (r.evaluations - r.popsize) / K;
+k = min(K, floor((budget - r.popsize) / per_iter + 1e-9));
+if k < 1, J = NaN; else, J = r.history(k); end
 end
 
 % ------------------------------------------------------------------------
@@ -409,8 +438,13 @@ switch lower(name)
     case 'itae'
         s = 'the paper''s fitness, step ITAE (Eq. 29)';
     otherwise
-        if isfield(T, 'target') && strcmpi(T.target, 'FBPA')
+        target = '';
+        if isfield(T, 'target'), target = upper(T.target); end
+        if strcmp(target, 'FBPA')
             s = 'cost: both ITAEs, and the five paper metrics scored against the paper''s FBPA-FOPID';
+        elseif strcmp(target, 'FBPA-ALL')
+            s = ['cost: both ITAEs, and the five paper metrics scored against the better of the ' ...
+                 'paper''s FBPA-FOPID and the FBPA-FOPID re-run here, metric by metric'];
         else
             s = sprintf('cost ''%s''', name);
         end
