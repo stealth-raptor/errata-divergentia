@@ -3,3 +3,9 @@ __pycache__/
 octave-workspace
 results/fopso_gwo_checkpoint.mat
 results/fopso_gwo_gains_prev.mat
+*.mex
+*.mexa64
+*.mexmaci64
+*.mexmaca64
+*.mexw64
+*.o

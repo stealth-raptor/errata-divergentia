@@ -32,20 +32,22 @@ See docs/audit_report.md.
 
 # FOPID re-tuned by the FO-PSO / GWO hybrid (FOPSO-GWO)
 
-Tuned with TUNE_FOPID_HYBRID: 8 particles x 5 iterations (48 cost evaluations), fitness weights [1 1 1 1 0.5 1 1 0] on [ITAE step, ITAE sine, the five paper metrics, step peak torque];
-final cost 0.7215, where the baseline scores 1. Baseline: the identified FOPID, one gain
-set for both experiments (controller_gains('FOPID')), which seeded the swarm.
+Tuned with TUNE_FOPID_HYBRID: 30 particles x 100 iterations (3030 cost evaluations), fitness weights [0.5 0.5 1 1 1 1 1 0] on [ITAE step, ITAE sine, the five paper metrics, step peak torque];
+target FBPA: the five paper metrics scored against the paper's FBPA-FOPID (times after
+the step instant), final cost 0.3916 where meeting that reference scores 1.
+Baseline: the identified FOPID, one gain set for both experiments (controller_gains('FOPID')),
+which seeded the swarm.
 
-| Metric | FOPID baseline | FOPSO-GWO | change | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures |
-|---|---:|---:|---:|---:|---:|
-| ITAE step | 2.871 | 1.82 | -36.6% | n/a | 1.189 |
-| ITAE sine | 4.742 | 2.803 | -40.9% | n/a | 3.56 |
-| Step overshoot (%) | 35.9 | 27.8 | -22.4% | 22.1 | 21.2 |
-| Step adjustment time (s) | 2.10 | 1.83 | -13.1% | 1.43 | 1.52 |
-| Step peak time (s) | 1.32 | 1.30 | -1.3% | 1.09 | 1.26 |
-| Sine MSE (rad^2) | 1.050e-02 | 3.498e-03 | -66.7% | 3.700e-03 | 3.676e-03 |
-| Sine sum |tau| (Nm) | 9961 | 9890 | -0.7% | 2.315e+04 | 2.568e+04 |
-| Step peak torque (Nm) | 1.725e+05 | 1.327e+05 | -23.1% | n/a | n/a |
+| Metric | FOPID baseline | FOPSO-GWO | change | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | beats FBPA table |
+|---|---:|---:|---:|---:|---:|:---:|
+| ITAE step | 2.871 | 0.6952 | -75.8% | n/a | 1.189 | n/a |
+| ITAE sine | 4.742 | 0.5673 | -88.0% | n/a | 3.56 | n/a |
+| Step overshoot (%) | 35.9 | 10.3 | -71.3% | 22.1 | 21.2 | yes |
+| Step adjustment time (s) | 2.10 | 1.16 | -44.7% | 1.43 | 1.52 | yes |
+| Step peak time (s) | 1.32 | 1.08 | -18.1% | 1.09 | 1.26 | yes |
+| Sine MSE (rad^2) | 1.050e-02 | 2.472e-04 | -97.6% | 3.700e-03 | 3.676e-03 | yes |
+| Sine sum |tau| (Nm) | 9961 | 9427 | -5.4% | 2.315e+04 | 2.568e+04 | yes |
+| Step peak torque (Nm) | 1.725e+05 | 2.139e+05 | +24.0% | n/a | n/a | n/a |
 
 The paper's FBPA-FOPID torque values are numerical artefacts (docs/audit_report.md, 3.3-3.4),
 and its step peak torque is not comparable; FOPSO-GWO is a different optimiser, not a
@@ -69,7 +71,7 @@ reproduction of FBPA.
 | FOPID, paper figures | 37.6 | 38.1 | 5.9 | 9.3 | 85.0 | 30.7 |
 | FOPID, this work | 23.5 | 38.8 | 10.6 | 2.9 | 94.2 | 29.5 |
 | FBPA-FOPID, paper figures | 29.0 | 25.0 | 10.5 | 2.5 | 33.1 | 26.9 |
-| FOPSO-GWO, this work | 24.2 | 32.6 | 10.8 | 27.9 | 26.9 | 44.6 |
+| FOPSO-GWO, this work | 3.7 | 4.6 | 5.1 | 13.4 | 14.6 | 20.3 |
 
 ## Per joint: Step adjustment time (s)
 
@@ -80,7 +82,7 @@ reproduction of FBPA.
 | FOPID, paper figures | 2.38 | 1.90 | 2.00 | 1.35 | 2.71 | 1.34 |
 | FOPID, this work | 2.64 | 2.00 | 1.84 | 1.44 | 2.53 | 1.24 |
 | FBPA-FOPID, paper figures | 1.78 | 1.44 | 1.58 | 1.26 | 1.80 | 1.28 |
-| FOPSO-GWO, this work | 1.80 | 1.64 | 2.06 | 1.74 | 1.89 | 1.81 |
+| FOPSO-GWO, this work | 1.03 | 1.12 | 1.47 | 1.05 | 1.07 | 1.23 |
 
 ## Per joint: Step peak time (s)
 
@@ -91,7 +93,7 @@ reproduction of FBPA.
 | FOPID, paper figures | 1.52 | 1.34 | 1.95 | 1.29 | 1.58 | 1.10 |
 | FOPID, this work | 1.50 | 1.29 | 1.32 | 1.63 | 1.62 | 1.15 |
 | FBPA-FOPID, paper figures | 1.37 | 1.25 | 1.43 | 1.36 | 1.06 | 1.08 |
-| FOPSO-GWO, this work | 1.42 | 1.32 | 1.32 | 1.14 | 1.37 | 1.22 |
+| FOPSO-GWO, this work | 1.06 | 1.18 | 1.15 | 1.01 | 1.01 | 1.05 |
 
 ## Per joint: Sine MSE (rad^2)
 
@@ -102,7 +104,7 @@ reproduction of FBPA.
 | FOPID, paper figures | 1.84e-02 | 1.91e-03 | 6.67e-03 | 1.17e-03 | 2.44e-02 | 4.06e-04 |
 | FOPID, this work | 1.42e-02 | 2.51e-03 | 1.98e-03 | 6.46e-04 | 1.36e-02 | 9.58e-05 |
 | FBPA-FOPID, paper figures | 1.13e-02 | 1.40e-03 | 3.85e-03 | 1.42e-03 | 3.71e-03 | 3.37e-04 |
-| FOPSO-GWO, this work | 9.82e-03 | 1.84e-03 | 1.23e-03 | 1.34e-04 | 6.86e-03 | 1.11e-03 |
+| FOPSO-GWO, this work | 3.14e-05 | 1.13e-03 | 3.10e-04 | 5.74e-08 | 6.43e-07 | 9.32e-06 |
 
 ## Per joint: Sine sum |tau| (Nm)
 
@@ -113,7 +115,7 @@ reproduction of FBPA.
 | FOPID, paper figures | 1.442e+05 | 3.271e+04 | 3.338e+04 | 1.225e+04 | 1880 | 10.04 |
 | FOPID, this work | 2.12e+04 | 2.468e+04 | 1.033e+04 | 3131 | 2487 | 220.6 |
 | FBPA-FOPID, paper figures | 9.094e+04 | 3.12e+04 | 2.224e+04 | 8262 | 1409 | 5.614 |
-| FOPSO-GWO, this work | 2.053e+04 | 2.55e+04 | 1.102e+04 | 1687 | 454.3 | 153.3 |
+| FOPSO-GWO, this work | 1.964e+04 | 2.511e+04 | 9753 | 1580 | 349.2 | 137.2 |
 
 ## PID gains, step experiment
 
@@ -159,8 +161,8 @@ reproduction of FBPA.
 
 | | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---|---|---|---|---|---|
-| Kp | 553.3 | 0.1609 | 0.1387 | 277.7 | 1.667 | 16.52 |
-| Ki | 213.7 | 2525 | 9.432 | 57.23 | 4.347 | 0.02054 |
-| Kd | 64.52 | 509.1 | 620.3 | 0.4244 | 4.447 | 0.1498 |
-| lambda | 1.609 | 0.6321 | 1.947 | 0.3214 | 0.7263 | 0.05003 |
-| mu | 1.346 | 0.6922 | 0.3403 | 1.51 | 0.7352 | 1.605 |
+| Kp | 6204 | 0.4034 | 0.07568 | 1.741e+04 | 1333 | 202.6 |
+| Ki | 5.449 | 153.3 | 0.7901 | 3.394 | 0.003141 | 0.0001953 |
+| Kd | 997.4 | 973.4 | 998.9 | 0.2318 | 5.627 | 0.18 |
+| lambda | 0.9811 | 0.8113 | 1.939 | 0.2166 | 0.451 | 0.09724 |
+| mu | 0.9882 | 0.7136 | 0.5066 | 1.781 | 1.408 | 1.719 |

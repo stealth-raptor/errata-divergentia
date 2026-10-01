@@ -25,6 +25,17 @@ function tuned = tune_fopid_hybrid(opts)
 %                  weight 2, both also penalised if worse than the baseline
 %     'itae'       the paper's own fitness: step ITAE only (Eq. 29)
 %
+%   Target.  By default (Target = 'baseline') every metric is scored
+%   relative to the FOPID baseline.  With Target = 'FBPA' the five paper
+%   metrics are scored relative to the paper's FBPA-FOPID (Table 3/4:
+%   overshoot 22.1 %, adjustment time 1.43 s, peak time 1.09 s, MSE 3.7e-3,
+%   torque 2.3154e4), so the regret term penalises every metric that is not
+%   yet better than FBPA's, and the adjustment and peak times are compared
+%   after the step instant (t - 1 s; from t = 0 they all start at 1 s).  The
+%   ITAE terms stay relative to the FOPID baseline.  The reported metrics are
+%   unchanged.  Aiming to beat FBPA on every metric:
+%     tune_fopid_hybrid(struct('Target', 'FBPA'))
+%
 %   Reducing torque from an already tuned controller, comparing against the
 %   original FOPID but starting from the FO-PSO/GWO gains:
 %     tune_fopid_hybrid(struct('Fitness', 'torque', 'Start', {{'FOPSO_GWO'}}, ...
@@ -48,7 +59,12 @@ function tuned = tune_fopid_hybrid(opts)
 %   Options (besides those of HYBRID_FOPSO_GWO, which are passed through):
 %     Fitness      'composite', 'torque' or 'itae'
 %     Weights      1x8 weights of FOPID_FITNESS (overrides Fitness)
-%     Regret       extra weight on metrics worse than the baseline
+%     Target       'baseline' (default) or 'FBPA', see above
+%     Robust       penalise numerically ill-conditioned closed loops (see
+%                  FOPID_FITNESS); default true when SIMULATE_MEX is built,
+%                  since it doubles the cost of a candidate
+%     Regret       extra weight on metrics worse than the reference (default
+%                  1, or 2 with Target = 'FBPA')
 %     Baseline     CONTROLLER_GAINS name the cost is normalised by (it
 %                  scores 1), default 'FOPID'
 %     Start        cell array of CONTROLLER_GAINS names put into the initial
@@ -69,6 +85,7 @@ addpath(here);                       % so PARFOR workers find the model files
 if ~exist('results', 'dir'), mkdir('results'); end
 
 if nargin < 1, opts = struct(); end
+user_regret = isfield(opts, 'Regret');
 opts = set_defaults(opts);
 
 P    = robot_params();
@@ -81,16 +98,34 @@ switch lower(opts.Fitness)
     case 'itae',      fit.weights = [1 0 0 0 0 0 0 0];    fit.regret = 0;
     otherwise, error('tune_fopid_hybrid:fitness', 'unknown fitness ''%s''', opts.Fitness);
 end
+fit.abort_err = 5;
+fit.time_offset = 0;
+fit.robust = opts.Robust;
+switch upper(opts.Target)
+    case 'BASELINE'
+    case 'FBPA'
+        fit.time_offset = 1;                     % the step instant
+        if strcmpi(opts.Fitness, 'composite'), fit.weights = [0.5 0.5 1 1 1 1 1 0]; end
+        if ~user_regret, fit.regret = 2; end
+    otherwise
+        error('tune_fopid_hybrid:target', 'unknown target ''%s''', opts.Target);
+end
 if ~isempty(opts.Weights), fit.weights = opts.Weights; end
 if numel(fit.weights) == 7, fit.weights = [fit.weights 0]; end
-fit.abort_err = 5;
 
 fprintf('Evaluating the %s baseline ...\n', opts.Baseline);
-[~, ref] = fopid_fitness(P, base, [], fit);
-if any(~isfinite(ref))
+[~, base_raw] = fopid_fitness(P, base, [], fit);
+if any(~isfinite(base_raw))
     error('tune_fopid_hybrid:baseline', 'the %s baseline does not complete both runs', opts.Baseline);
 end
-print_metrics(opts.Baseline, ref);
+print_metrics(opts.Baseline, base_raw);
+
+ref = base_raw;                                  % what the cost is normalised by
+ref_name = opts.Baseline;
+if strcmpi(opts.Target, 'FBPA')
+    ref(3:7) = [22.1 1.43 1.09 3.7e-3 2.3154e4]; % paper Tables 3 and 4, FBPA-FOPID
+    ref_name = 'FBPA target';
+end
 
 cost = @(z) fopid_fitness(P, decode(z, B), ref, fit);
 
@@ -105,10 +140,10 @@ for i = 1:numel(opts.Start)
     end
 end
 
-opt_opts = rmfield(opts, {'Fitness', 'Weights', 'Regret', 'Baseline', 'Start', 'Bounds', 'OutFile'});
+opt_opts = rmfield(opts, {'Fitness', 'Weights', 'Regret', 'Baseline', 'Start', 'Bounds', 'OutFile', 'Target', 'Robust'});
 opt_opts.Seeds = min(max(z_seed, 0), 1);
 % a checkpoint is only resumed if it was written for the same cost function
-opt_opts.CheckpointTag = {fit.weights, fit.regret, B.lo, B.hi, ref, opts.Start};
+opt_opts.CheckpointTag = {fit.weights, fit.regret, fit.time_offset, fit.robust, B.lo, B.hi, ref, opts.Start};
 
 fprintf('FO-PSO/GWO: %d particles x %d iterations, 30 parameters, fitness ''%s'', start %s\n', ...
         opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness, strjoin(opts.Start, ' + '));
@@ -116,13 +151,18 @@ fprintf('FO-PSO/GWO: %d particles x %d iterations, 30 parameters, fitness ''%s''
 
 gains = decode(z_best, B);
 [J, raw] = fopid_fitness(P, gains, ref, fit);
-fprintf('\nBest cost %.4f (%s = 1)\n', J, opts.Baseline);
-print_comparison(opts.Baseline, ref, raw);
+fprintf('\nBest cost %.4f (%s = 1)\n', J, ref_name);
+print_comparison(opts.Baseline, base_raw, raw);
+if strcmpi(opts.Target, 'FBPA')
+    print_comparison('FBPA target', ref, raw);
+end
 
 tuned.gains    = gains;
 tuned.cost     = J;
 tuned.metrics  = raw;
-tuned.baseline = ref;
+tuned.baseline = base_raw;
+tuned.reference = ref;
+tuned.target   = opts.Target;
 tuned.info     = info;
 tuned.fitness  = fit;
 tuned.bounds   = B;
@@ -190,7 +230,8 @@ function opts = set_defaults(opts)
 has_pct = ~exist('OCTAVE_VERSION', 'builtin') && ~isempty(ver('parallel')) ...
           && license('test', 'Distrib_Computing_Toolbox');
 d = struct('PopSize', 30, 'MaxIter', 100, 'Fitness', 'composite', 'Weights', [], ...
-           'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, ...
+           'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, 'Target', 'baseline', ...
+           'Robust', exist('simulate_mex') == 3, ...                       %#ok<EXIST>
            'Bounds', struct('lo', [-2 -4 -1 0.05 0.05], 'hi', [5 5 3 1.95 1.95]), ...
            'UseParallel', has_pct, ...
            'Checkpoint', fullfile('results', 'fopso_gwo_checkpoint.mat'), ...

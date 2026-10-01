@@ -103,7 +103,7 @@ for i = 1:numel(controllers)
         results.(name).curve_rms.sine = sqrt(mean((sine_run.q - psine.q).^2, 2));
     else
         % the tuner's record: its baseline metrics, settings and history
-        results.(name).tuning = load(hybrid_file, 'baseline', 'cost', 'fitness', 'info');
+        results.(name).tuning = load(hybrid_file);
     end
     fprintf('  %-9s done (%.0f s)\n', name, toc);
 end
@@ -235,18 +235,31 @@ out('Tuned with TUNE_FOPID_HYBRID: %d particles x %d iterations (%d cost evaluat
     o.PopSize, o.MaxIter, T.info.evaluations);
 out('fitness weights [%s] on [ITAE step, ITAE sine, the five paper metrics, step peak torque];\n', ...
     strjoin(arrayfun(@(x) sprintf('%g', x), T.fitness.weights, 'UniformOutput', false), ' '));
-out('final cost %.4f, where the baseline scores 1. Baseline: the identified FOPID, one gain\n', T.cost);
-out('set for both experiments (controller_gains(''FOPID'')), which seeded the swarm.\n\n');
-out('| Metric | FOPID baseline | FOPSO-GWO | change | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures |\n');
-out('|---|---:|---:|---:|---:|---:|\n');
+target = 'baseline';
+if isfield(T, 'target'), target = T.target; end
+if strcmpi(target, 'FBPA')
+    out('target FBPA: the five paper metrics scored against the paper''s FBPA-FOPID (times after\n');
+    out('the step instant), final cost %.4f where meeting that reference scores 1.\n', T.cost);
+else
+    out('final cost %.4f, where the baseline scores 1.\n', T.cost);
+end
+out('Baseline: the identified FOPID, one gain set for both experiments (controller_gains(''FOPID'')),\n');
+out('which seeded the swarm.\n\n');
+out('| Metric | FOPID baseline | FOPSO-GWO | change | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | beats FBPA table |\n');
+out('|---|---:|---:|---:|---:|---:|:---:|\n');
 all_labels = [{'ITAE step', 'ITAE sine'}, labels, {'Step peak torque (Nm)'}];
 all_fmt    = [{'%.4g', '%.4g'}, fmt, {'%.4g'}];
 tab  = [NaN NaN paper.FBPA NaN];
 fig_ = [figs.FBPA.itae, figs.FBPA.summary, NaN];
 for k = 1:8
+    verdict = 'n/a';
+    if ~isnan(tab(k))
+        verdict = 'no';
+        if raw(k) < tab(k), verdict = 'yes'; end
+    end
     cells = {sprintf(all_fmt{k}, T.baseline(k)), sprintf(all_fmt{k}, raw(k)), ...
              sprintf('%+.1f%%', 100 * (raw(k) / T.baseline(k) - 1)), ...
-             num_or_na(all_fmt{k}, tab(k)), num_or_na(all_fmt{k}, fig_(k))};
+             num_or_na(all_fmt{k}, tab(k)), num_or_na(all_fmt{k}, fig_(k)), verdict};
     out('| %s | %s |\n', all_labels{k}, strjoin(cells, ' | '));
 end
 out('\nThe paper''s FBPA-FOPID torque values are numerical artefacts (docs/audit_report.md, 3.3-3.4),\n');

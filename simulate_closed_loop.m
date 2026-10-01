@@ -9,7 +9,10 @@ function out = simulate_closed_loop(P, gains, reference, opt)
 %     opt        optional: dt (1e-3), T (5), log_dt (0.01), t_step (1), omega (1.5),
 %                abort_err (Inf): stop early once any |error| exceeds this
 %                value; used by the gain tuner (FOPID_FITNESS) to discard
-%                unstable candidates quickly
+%                unstable candidates quickly;
+%                use_mex (true when SIMULATE_MEX has been built): run the
+%                compiled C version of this loop (BUILD_MEX), the same model
+%                and results (tools/check_mex.m), about 1000x faster in Octave
 %
 %   Returns, sampled every log_dt seconds:
 %     out.t   1xN time vector
@@ -40,6 +43,7 @@ if ~isfield(opt, 'log_dt'), opt.log_dt = 0.01; end
 if ~isfield(opt, 't_step'), opt.t_step = 1;  end
 if ~isfield(opt, 'omega'),  opt.omega = 1.5; end
 if ~isfield(opt, 'abort_err'), opt.abort_err = Inf; end
+if ~isfield(opt, 'use_mex'),   opt.use_mex = exist('simulate_mex') == 3; end %#ok<EXIST>
 
 dt = opt.dt;
 Nt = round(opt.T / dt) + 1;
@@ -53,6 +57,27 @@ switch reference
 end
 
 C  = fopid_controller(gains, dt);
+
+if opt.use_mex
+    [qo, uo, nlogged, diverged, kstop] = simulate_mex(P.pstar, P.rc, P.m, P.Idiag, P.ca, P.sa, ...
+        P.g, P.fc, P.b, r, dt, every, C.Kp, C.Ki, C.Kd, C.Fi.K, C.Fi.r, C.Fi.A, C.Fi.B, ...
+        C.Fd.K, C.Fd.r, C.Fd.A, C.Fd.B, double(C.use_integrator), double(C.use_difference), ...
+        opt.abort_err);
+    keep = 1:size(qo, 2);
+    if diverged
+        keep = 1:max(nlogged, 1);
+        if isinf(opt.abort_err)
+            warning('simulate_closed_loop:unstable', 'closed loop diverged at t = %.3f s', t(kstop));
+        end
+    end
+    out.t = t(1 + (keep - 1) * every);
+    out.r = r(:, 1 + (keep - 1) * every);
+    out.q = qo(:, keep);
+    out.u = uo(:, keep);
+    out.diverged = logical(diverged);
+    return;
+end
+
 q  = zeros(6, 1);
 qd = zeros(6, 1);
 

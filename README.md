@@ -21,23 +21,23 @@ This branch (`brand-new-day`) is the final code. It combines
 ## Run it
 
 ```
-octave --eval main                  # PID and FOPID (+ FOPSO-GWO once tuned) -> results/
+octave --eval build_mex             # once: compiles the C simulation (about 1000x faster)
+octave --eval "tune_fopid_hybrid(struct('Target', 'FBPA', 'RandomSeed', 4))"   # FOPSO-GWO, ~6 min
+octave --eval main                  # PID, FOPID and FOPSO-GWO -> results/
 octave --eval "main('shared')"      # one PID / FOPID gain set for both experiments -> results/shared_gains/
-
-octave --eval "tune_fopid_hybrid(struct('PopSize', 8, 'MaxIter', 5, 'RandomSeed', 1))"   # short run, ~1 h
-octave --eval tune_fopid_hybrid     # the paper's budget, 30 particles x 100 iterations
 ```
 
-`main` runs in a few minutes in Octave; no packages are needed, and it also runs in MATLAB. It
-simulates the controllers through both experiments and compares them with the paper in three
-ways:
+Without `build_mex` everything still runs on the plain .m simulation, with identical results,
+but about 40 s per simulation instead of 0.03 s; tuning is then only practical with a small
+budget. No packages are needed, and the code also runs in MATLAB. `main` simulates the
+controllers through both experiments and compares them with the paper in three ways:
 1. the published Tables 3 and 4;
 2. the same metrics recomputed from the paper's own figures, which do not fully agree with its
    tables;
 3. every published curve, joint by joint.
 
 Outputs: `summary.md`, the figure set, and `simulation_results.mat`. `results/` in this branch
-holds the output of the short tuning run above followed by `main`.
+holds the output of the tuning command above followed by `main`.
 
 **Gain sets.** The paper publishes no gains and does not say whether its step and sine
 experiments used the same ones. `controller_gains(controller, experiment)` holds three
@@ -51,6 +51,7 @@ Checks:
 octave --eval "addpath tools; verify_dynamics"   # dynamics vs Jacobian formula, energy conservation
 octave --eval "addpath tools; check_twin"        # Octave model == Python identification twin
 octave --eval "addpath tools; check_twin('shared')"
+octave --eval "addpath tools; check_mex"         # compiled simulation == .m loop (~10 min)
 ```
 
 ### Figures
@@ -110,12 +111,41 @@ Why an exact match of every panel is not possible (details in the audit report):
   identified gains are not unique; they show the curves are attainable, not that they are the
   authors' gains.
 
-## FOPSO-GWO: re-tuning the FOPID
+## FOPSO-GWO: beating the paper's FBPA-FOPID
 
 The paper improves its FOPID with FBPA, a fractional-order PSO fused with beetle antennae search.
 FOPSO-GWO is this work's counterpart: a **fractional-order PSO hybridised with the grey wolf
 optimiser**. It re-tunes all 30 FOPID parameters (Kp, Ki, Kd, λ, μ for each of the six joints),
-starting from the identified FOPID.
+starting from the identified FOPID, with the paper's own FBPA budget of 30 particles × 100
+iterations.
+
+### Result
+
+`tune_fopid_hybrid(struct('Target', 'FBPA', 'RandomSeed', 4))`, then `main`, on the paper's
+plant (Table 2) and with the paper's metrics:
+
+| Metric | FOPID (identified, the seed) | Paper FBPA-FOPID (Tables 3–4) | **FOPSO-GWO** | vs FBPA |
+|---|---:|---:|---:|---:|
+| Step overshoot (%) | 35.9 | 22.1 | **10.3** | −53 % |
+| Step adjustment time (s) | 2.10 | 1.43 | **1.162** | −19 % |
+| Step peak time (s) | 1.32 | 1.09 | **1.077** | −1.2 % |
+| Sine MSE (rad²) | 1.05e-2 | 3.7e-3 | **2.47e-4** | −93 % |
+| Sine Σ\|τ\| (Nm) | 9961 | 2.32e4 | **9427** | −59 % |
+
+The two ITAE terms of the cost fall by 76 % (step) and 88 % (sine) against the FOPID. The price
+is a 24 % higher peak torque at the step instant, a metric the paper does not report. The full
+comparison, per joint and against the FBPA values recomputed from the paper's figures, is in
+[`results/summary.md`](results/summary.md), and the curves are in the magenta traces of Figs 6–19.
+
+**FOPSO-GWO beats the paper's FBPA-FOPID on all five of the paper's metrics.** This is not a
+lucky draw. Eight runs with different random seeds and settings all beat FBPA on all five
+(overshoot 6.8–14.7 %, adjustment time 1.11–1.22 s, peak time 1.075–1.087 s, MSE 2.2–3.6e-4,
+Σ|τ| 9.3–9.7e3).
+* **Peak time** is the tightest metric. Every run lands at 1.075–1.087 s against FBPA's 1.09 s,
+  and weighting it 3× does not lower it further, so it is close to what this arm and controller
+  structure allow.
+* **Torque.** The paper's torque values are dominated by numerical artefacts (audit report
+  3.3–3.4), so that comparison holds but means little.
 
 ### The algorithm (`hybrid_fopso_gwo.m`)
 
@@ -141,54 +171,43 @@ of GWO's usual linear one.
 
 ### The tuning (`tune_fopid_hybrid.m`, `fopid_fitness.m`)
 
-* **Search space.** Kp, Ki and Kd are searched on a log10 scale, and λ and μ linearly. The
-  default bounds are log10 Kp ∈ [−2, 5], log10 Ki ∈ [−4, 5], log10 Kd ∈ [−1, 3] and λ, μ ∈ [0.05,
-  1.95]. They contain every gain of the identified FOPID, so the seed enters the swarm unclipped.
-* **Seeding.** The identified FOPID (`controller_gains('FOPID')`, one set for both experiments)
-  is one particle, and 30 % of the swarm starts as jittered copies of it. Because gbest never
-  gets worse, **the result is never worse than that FOPID** under the chosen cost.
-* **Cost.** The default `'composite'` cost combines the ITAE (paper Eq. 29) of both experiments
-  with the five paper metrics, each divided by the FOPID value, so the FOPID scores exactly 1 and
-  anything below 1 is better. A metric that ends up worse than FOPID is penalised extra.
-  `'torque'` also weights the torques; `'itae'` is the paper's own fitness (step ITAE only).
-* **Unstable candidates** stop as soon as any joint error exceeds 5 rad, and are ranked by how
-  long they held on.
+* **Target.** With `Target = 'FBPA'`, the five paper metrics are scored against the paper's
+  FBPA-FOPID values (Tables 3 and 4), and any metric not yet better than FBPA's is penalised
+  extra. The two ITAE terms (paper Eq. 29) are scored against the FOPID. Adjustment and peak
+  time are scored after the step instant: measured from t = 0, as the paper reports them, every
+  peak time is ≥ 1 s and the ratio would hardly move. The reported metrics are unchanged. The
+  default `Target = 'baseline'` scores everything against the FOPID instead.
+* **Search space.** Kp, Ki and Kd are searched on a log10 scale, and λ and μ linearly. The bounds
+  are log10 Kp ∈ [−2, 5], log10 Ki ∈ [−4, 5], log10 Kd ∈ [−1, 3] and λ, μ ∈ [0.05, 1.95]. They
+  contain every gain of the identified FOPID, which seeds the swarm (one particle plus 30 %
+  jittered copies), so the result is never worse than the FOPID under the chosen cost.
+* **Robust.** Each finished candidate is simulated again with all gains × (1 + 1e-10), and a
+  closed loop that then moves by more than 1e-6 rad is penalised. Without this check, one of the
+  test runs returned gains whose response changed by 2e-2 rad for a 1e-14 gain change: a loop
+  chattering in a round-off-sensitive regime, which would not reproduce on another machine. The
+  check is on by default when the compiled simulation is built.
+* **Unstable candidates** stop as soon as any joint error exceeds 5 rad.
 
-### Runtime in Octave
+### Speed: the compiled simulation (`simulate_mex.c`, `build_mex.m`)
 
-One cost evaluation is two 5 s simulations, about 80 s in Octave (unstable candidates take a
-few seconds). The short run above, 8 particles × 5 iterations, takes about an hour. The paper's
-budget of 30 × 100 (≈ 3000 evaluations) takes days in serial Octave. MATLAB with the Parallel
-Computing Toolbox evaluates the swarm with `parfor` automatically. A checkpoint
-(`results/fopso_gwo_checkpoint.mat`) is saved after every iteration, so calling the tuner again
-with the same options resumes an interrupted run. When `results/fopso_gwo_gains.mat` exists,
-`main` adds FOPSO-GWO to the summary and the figures.
+`simulate_mex.c` is the closed-loop simulation in C: the same Newton–Euler dynamics, FOPID
+update and RK4 loop as the .m code. `tools/check_mex.m` verifies that both agree, to round-off
+(1e-14 rad, and 6e-9 rad on the least well-conditioned gain set). One 5 s simulation takes
+0.03 s instead of ~40 s in Octave, and the paper's tuning budget (≈ 3000 evaluations) runs in
+about 6 minutes instead of days. `simulate_closed_loop` uses it automatically once
+`build_mex` has compiled it.
 
-### Result of the short run
+### Why the earlier FOPSO-GWO results (branch `claude/pensive-ramanujan-mmu564`) differ
 
-`tune_fopid_hybrid(struct('PopSize', 8, 'MaxIter', 5, 'RandomSeed', 1))`, 48 cost evaluations,
-49 min in Octave including `main`. Final cost **0.722** (FOPID = 1). The baseline is the
-identified FOPID with one gain set for both experiments, which seeded the swarm.
-
-| Metric | FOPID baseline | FOPSO-GWO | change | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures |
-|---|---:|---:|---:|---:|---:|
-| ITAE step | 2.871 | 1.820 | −36.6 % | n/a | 1.189 |
-| ITAE sine | 4.742 | 2.803 | −40.9 % | n/a | 3.560 |
-| Step overshoot | 35.9 % | 27.8 % | −22.4 % | 22.1 % | 21.2 % |
-| Step adjustment time (5 %) | 2.10 s | 1.83 s | −13.1 % | 1.43 s | 1.52 s |
-| Step peak time | 1.32 s | 1.30 s | −1.3 % | 1.09 s | 1.26 s |
-| Sine MSE | 1.050e-2 | 3.50e-3 | −66.7 % | 3.70e-3 | 3.68e-3 |
-| Sine Σ\|τ\| | 9961 | 9890 | −0.7 % | 2.32e4 | 2.57e4 |
-| Step peak torque | 1.725e5 | 1.327e5 | −23.1 % | n/a | n/a |
-
-* Even this short run improves every metric on the FOPID it started from.
-* Its sine MSE is already below the paper's FBPA-FOPID. Overshoot and settling time remain above
-  FBPA's.
-* The paper's torque values are numerical artefacts (audit 3.3–3.4) and are not comparable.
-
-A longer run (the paper's 30 × 100 budget) is expected to improve further. Full per-joint tables
-and the gains are in `results/summary.md`.
-
+That branch reported, for example, an overshoot of 13.4 % and an MSE of 3.2e-4. Those numbers
+came from its **pre-audit plant**: real UR5 link lengths with each link's mass placed on its
+joint axis, about 3× less inertia and far less coupling than the paper's Table-2 arm. Evaluated
+on the paper's plant, its tuned gains overshoot by 66–112 % (peak time 1.71–1.73 s). Its torque
+sums (3.1e4) also used 5001 samples instead of the paper's 501; on the paper's grid the same run
+gives ~3.0e3. Even there, FBPA was not beaten on torque, and in the latest run peak time only
+tied. The compiled simulation and the optimiser come from that branch, ported to the audited
+plant. Its `benchmark_optimizer.m` (an optimiser test on mathematical test functions) is not
+needed to generate FOPSO-GWO and was not carried over.
 
 ## Architecture
 
@@ -204,6 +223,7 @@ main.m                      runner: both controllers x both experiments, tables 
 ├── fractional_operator.m   Oustaloup approximation of s^alpha, discretised
 │
 ├── simulate_closed_loop.m  controller at 1 kHz + RK4 integration of the plant, logged at 0.01 s
+│                           (runs simulate_mex when built)
 ├── performance_metrics.m   the metrics of the paper's Tables 3 and 4
 ├── paper_curves.m          the paper's published curves, in the same format as a simulation
 └── plot_paper_figures.m    the figure set, in the paper's own layout, plus overlays
@@ -211,6 +231,9 @@ main.m                      runner: both controllers x both experiments, tables 
 tune_fopid_hybrid.m         tunes the 30 FOPID parameters -> results/fopso_gwo_gains.mat
 ├── hybrid_fopso_gwo.m      FO-PSO / grey-wolf hybrid optimiser
 └── fopid_fitness.m         cost of one gain set (ITAE + the paper's metrics)
+
+simulate_mex.c              the closed-loop simulation in C, used automatically once built
+build_mex.m                 compiles it (mkoctfile in Octave, mex in MATLAB)
 
 data/paper_curves/          published curves of Figs 6-19, per panel and series (from the PDF)
 data/paper_grid/            the same on the paper's 0.01 s grid
@@ -241,6 +264,8 @@ docs/audit_report.md        the audit
 
 ## Requirements
 
-Octave ≥ 6 (tested with 8.4) or MATLAB. No toolboxes.
+Octave ≥ 6 (tested with 8.4) or MATLAB. No toolboxes. `build_mex` needs a C compiler: Octave on
+Windows ships one; on Linux install the Octave development package (e.g. `apt install
+octave-dev`); on macOS the Xcode command line tools.
 The Python tools in `tools/` (only needed to re-extract curves or re-identify gains) use numpy,
 scipy, numba, cma and pymupdf.

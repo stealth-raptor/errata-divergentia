@@ -15,6 +15,20 @@ function [J, raw] = fopid_fitness(P, gains, ref, fit)
 %                            than the reference (pushes the search towards
 %                            gain sets that beat FOPID on every count)
 %              abort_err     stop a simulation once any |error| exceeds this
+%              robust        if true, a candidate that completes both runs is
+%                            simulated again with all gains x (1 + 1e-10);
+%                            if any joint angle then moves by more than
+%                            1e-6 rad the closed loop is numerically
+%                            ill-conditioned (it chatters in a round-off-
+%                            sensitive regime, and its results would not
+%                            be reproducible across platforms), and 10 is
+%                            added to J (default false)
+%              time_offset   subtracted from the adjustment and peak times
+%                            (entries 4-5) of raw and ref before their ratio
+%                            is taken (default 0); with 1, the step instant,
+%                            the ratio compares response times after the
+%                            step instead of times from t = 0, which all
+%                            start at 1 s
 %
 %   raw = [ITAE_step, ITAE_sine, overshoot, adjustment time, peak time,
 %          sine MSE, sine torque, step peak torque]
@@ -45,6 +59,8 @@ if ~isfield(fit, 'weights'),   fit.weights = [1 1 1 1 0.5 1 1 0]; end
 if numel(fit.weights) == 7,    fit.weights = [fit.weights 0]; end
 if ~isfield(fit, 'regret'),    fit.regret = 1; end
 if ~isfield(fit, 'abort_err'), fit.abort_err = 5; end
+if ~isfield(fit, 'time_offset'), fit.time_offset = 0; end
+if ~isfield(fit, 'robust'),    fit.robust = false; end
 
 opt.abort_err = fit.abort_err;
 T = 5;
@@ -70,11 +86,35 @@ if isempty(ref)
     return;
 end
 
-ratio = raw ./ max(ref, eps);
+num = raw;  den = ref;
+num(4:5) = num(4:5) - fit.time_offset;
+den(4:5) = den(4:5) - fit.time_offset;
+ratio = max(num, 0) ./ max(den, eps);
 judged = 3:8;
 judged = judged(fit.weights(judged) > 0);
 J = sum(fit.weights .* ratio) / sum(fit.weights) ...
     + fit.regret * sum(max(0, ratio(judged) - 1));
+if fit.robust && sensitivity(P, gains, opt, step, sine) > 1e-6
+    J = J + 10;
+end
+end
+
+% ------------------------------------------------------------------------
+function d = sensitivity(P, gains, opt, step, sine)
+%SENSITIVITY  Response change for a relative change of 1e-10 in every gain.
+%   A well-conditioned closed loop moves by ~1e-9 rad; one that chatters in a
+%   round-off-sensitive regime by ~1e-3 rad whatever the size of the change.
+g = gains;
+for f = {'Kp', 'Ki', 'Kd', 'lambda', 'mu'}
+    g.(f{1}) = gains.(f{1}) * (1 + 1e-10);
+end
+a = simulate_closed_loop(P, g, 'step', opt);
+b = simulate_closed_loop(P, g, 'sine', opt);
+if a.diverged || b.diverged
+    d = Inf;
+    return;
+end
+d = max(max(abs(a.q(:) - step.q(:))), max(abs(b.q(:) - sine.q(:))));
 end
 
 % ------------------------------------------------------------------------
