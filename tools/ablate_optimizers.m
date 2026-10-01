@@ -12,7 +12,7 @@ function ablate_optimizers(seeds, variants, cost)
 %     fopso_gwo_v1   FOPSO-GWO's first settings: c1 = c2 = c3 = 1 and the
 %                    paper's fractional order 0.9 -> 0.4 (Eq. 27); plain PSO
 %                    beat them on the tracking costs, which led to the final
-%                    settings (HYBRID_FOPSO_GWO)
+%                    settings (HYBRID_FOPSO_GWO, TOOLS/DEVELOP_FOPSO_GWO)
 %     fopso_gwo_c2   the first settings with c1 = c2 = c3 = 2 (PSO's and FBPA's)
 %     fopso_c2       FO-PSO alone: the first settings without the grey-wolf
 %                    term (c3 = 0), c1 = c2 = 2: the fractional velocity memory

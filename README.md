@@ -12,9 +12,10 @@ from the vector graphics of the PDF.
 On top of the reproduction, the FOPID is re-tuned with a **fractional-order PSO / grey-wolf
 hybrid (FOPSO-GWO)**, this work's counterpart of FBPA, as a whole controller: within the torque
 the paper's own controllers use, it tracks better than the paper's FBPA-FOPID on every metric
-of its curves and of its reproduction, and on four of the five in its table (peak time 1.10
-against 1.09 s). FBPA itself is re-implemented and compared with FOPSO-GWO as an optimiser under
-identical costs.
+of its curves and of its reproduction, and on four of the five in its table (peak time 1.11
+against 1.09 s). FBPA and plain PSO are re-implemented and compared with FOPSO-GWO as
+optimisers under identical costs: FOPSO-GWO beats FBPA, and beats PSO under two of four costs,
+including the whole-controller one.
 
 This branch (`brand-new-day`) is the final code. It combines
 * the audited model and the PID / FOPID reproduction of branch `audit`: a line-by-line audit
@@ -29,7 +30,7 @@ This branch (`brand-new-day`) is the final code. It combines
 
 ```
 octave --eval build_mex             # once: compiles the C simulation (about 1000x faster)
-octave --eval "tune_fopid_hybrid(struct('Fitness', 'whole', 'RandomSeed', 2))"   # FOPSO-GWO, ~6 min
+octave --eval "tune_fopid_hybrid(struct('Fitness', 'whole', 'RandomSeed', 6))"   # FOPSO-GWO, ~6 min
 octave --eval "tune_fopid_hybrid(struct('Optimizer', 'PSO', 'Fitness', 'whole', 'RandomSeed', 4))"   # PSO-FOPID, ~6 min
 octave --eval main                  # all five controllers -> results/
 ```
@@ -40,7 +41,9 @@ Optional:
 octave --eval "tune_fopid_hybrid(struct('Optimizer', 'FBPA', 'RandomSeed', 1))"   # FBPA as an optimiser, ~10 min
 octave --eval "addpath tools; compare_optimizers"   # PSO vs FBPA vs FOPSO-GWO, 4 costs x 4 seeds (~7 h;
                                                      # or one process per seed: compare_optimizers(1), ...)
-octave --eval "addpath tools; compare_optimizers(5:8, {}, {'whole'})"   # seeds 5-8 of the whole cost
+octave --eval "addpath tools; compare_optimizers(5:8, {'PSO', 'FOPSO-GWO'})"   # seeds 5-8, PSO and FOPSO-GWO
+octave --eval "addpath tools; compare_optimizers(5:8, {'FBPA'}, {'whole'})"      # seeds 5-8 of FBPA, whole cost
+octave --eval "addpath tools; develop_fopso_gwo(101:104, {}, 'fbpa')"          # FOPSO-GWO's development runs
 octave --eval "main('shared')"      # one gain set per paper controller for both experiments -> results/shared_gains/
 ```
 
@@ -79,7 +82,7 @@ octave --eval "addpath tools; check_mex"         # compiled simulation == .m loo
 | `fig13…fig18_jointN_sine.png` | Figs 13–18 | sine response per joint: (a) position tracking trajectory, (b) tracking error |
 | `fig19_sine_torque.png` | Fig 19 | joint driving torques, sine response (3×2 grid) |
 | `compare_step.png`, `compare_sine.png` | Figs 6–11, 13–18 | every published curve (thick black) overlaid on this work (thin colour), PID, FOPID and FBPA-FOPID, with the rms difference per joint |
-| `convergence.png` | (not in the paper) | tuning the FOPID: best cost against cost evaluations, FBPA and FOPSO-GWO, one panel per cost |
+| `convergence.png` | (not in the paper) | tuning the FOPID: best cost against cost evaluations, PSO, FBPA and FOPSO-GWO, one panel per cost |
 
 Colours are the paper's own: reference ("dir") red, PID green, FOPID blue, FBPA-FOPID black.
 In the sine error panels and in Fig 19 the paper draws FOPID in red, which is kept. PSO-FOPID
@@ -96,7 +99,7 @@ is cyan and FOPSO-GWO magenta. All signals are logged every 0.01 s, as in the pa
 | FBPA-FOPID | Paper | 22.1 | 1.43 | 1.09 | 3.7e-3 | 2.32e4 |
 | FBPA-FOPID | This work | 19.8 | 1.45 | 1.25 | 2.3e-3 | 1.01e4 |
 | PSO-FOPID | This work (improved PSO) | 17.8 | 1.33 | 1.11 | 2.7e-3 | 1.01e4 |
-| **FOPSO-GWO** | **This work (proposed)** | **18.6** | **1.29** | **1.10** | **1.3e-3** | **9951** |
+| **FOPSO-GWO** | **This work (proposed)** | **13.6** | **1.35** | **1.11** | **1.9e-3** | **9610** |
 
 * **PID, FOPID, FBPA-FOPID:** reproductions of the paper's three controllers, with the gains
   that make the simulation match each controller's published curves (below). The paper
@@ -115,16 +118,16 @@ is cyan and FOPSO-GWO magenta. All signals are logged every 0.01 s, as in the pa
 FOPSO-GWO re-tunes the FOPID as a whole controller (`Fitness = 'whole'`): better tracking than
 the paper's FBPA-FOPID, **within the torque the paper's own controllers use**, joint by joint,
 and without one joint hiding behind the averages. PSO-FOPID is the same tuning done by plain
-PSO.
+PSO. Each is the best of random seeds 1–8 under that cost (FOPSO-GWO seed 6, PSO seed 4).
 
 | Metric | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures | FBPA-FOPID: this work | PSO-FOPID | **FOPSO-GWO** | vs table | vs this work's FBPA-FOPID | vs PSO-FOPID |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Overshoot (%) | 22.1 | 21.2 | 19.8 | 17.8 | **18.6** | −16 % | −6 % | +4 % |
-| Adjustment time (s) | 1.43 | 1.52 | 1.45 | 1.33 | **1.29** | −10 % | −11 % | −3 % |
-| Peak time (s) | 1.09 | 1.26 | 1.25 | 1.11 | **1.10** | +0.9 % | −12 % | −1 % |
-| Sine MSE (rad²) | 3.7e-3 | 3.7e-3 | 2.3e-3 | 2.7e-3 | **1.3e-3** | −65 % | −42 % | −52 % |
-| Sine Σ\|τ\| (Nm) | 2.32e4 | 2.57e4 | 1.01e4 | 1.01e4 | **9951** | −57 % | −2 % | −2 % |
-| ITAE step / sine (Eq. 29) | n/a | 1.19 / 3.56 | 1.16 / 2.44 | 1.05 / 2.27 | **0.84 / 1.69** | n/a | −28 % / −31 % | −20 % / −26 % |
+| Overshoot (%) | 22.1 | 21.2 | 19.8 | 17.8 | **13.6** | −38 % | −31 % | −23 % |
+| Adjustment time (s) | 1.43 | 1.52 | 1.45 | 1.33 | **1.35** | −5 % | −7 % | +2 % |
+| Peak time (s) | 1.09 | 1.258 | 1.250 | 1.113 | **1.112** | +2.0 % | −11 % | −0.1 % |
+| Sine MSE (rad²) | 3.7e-3 | 3.7e-3 | 2.3e-3 | 2.7e-3 | **1.9e-3** | −49 % | −17 % | −32 % |
+| Sine Σ\|τ\| (Nm) | 2.32e4 | 2.57e4 | 1.01e4 | 1.01e4 | **9610** | −59 % | −5 % | −5 % |
+| ITAE step / sine (Eq. 29) | n/a | 1.19 / 3.56 | 1.16 / 2.44 | 1.05 / 2.27 | **1.19 / 1.72** | n/a | +3 % / −30 % | +13 % / −24 % |
 
 **Torque.** Peaks are the largest joint; sums and total variations (Σ\|τ(k+1) − τ(k)\| at
 1 kHz, which grows with chattering) are averaged over the joints. The first 50 ms after the step
@@ -137,34 +140,47 @@ listed on its own.
 | FOPID | 7.9e5 | 1524 | 1902 | 922 | 22840 |
 | FBPA-FOPID | 8.2e4 | 1495 | 495 | 935 | 1445 |
 | PSO-FOPID | 1.9e5 | 856 | 291 | 795 | 643 |
-| **FOPSO-GWO** | 8.1e4 | 1476 | 365 | 1175 | 598 |
+| **FOPSO-GWO** | 4.6e4 | 1517 | 413 | 1552 | 597 |
 
 * **Within the paper's torque, on every joint.** FOPSO-GWO stays within all 24 caps: on every
   joint, its peak torque in the kick, in the rest of the step and in the sine run is no larger
   than the largest any of the paper's three controllers needs there, and no joint overshoots
-  more than the paper's FBPA-FOPID does on its worst joint (33 %). Its sine peak is a fifth
-  of FOPID's and below FBPA-FOPID's, and its sine torque varies 2.4× less than FBPA-FOPID's.
-  PSO-FOPID also stays within all 24 caps, with lower peaks after the kick (856 against
-  1476 Nm) and in the sine run, but a kick 2.3× larger.
-* **Tracking.** It beats this work's FBPA-FOPID and the paper's own FBPA-FOPID curves on all
-  five metrics and both ITAEs, and the paper's table on four of the five. Against PSO-FOPID,
-  tuned with the same cost, it is better on four of the five and both ITAEs (sine MSE half,
-  ITAE 20–26 % lower); PSO-FOPID overshoots less (17.8 against 18.6 %).
-* **Peak time** is the exception, 1.10 s against the table's 1.09 s. The table's 1.09 s
+  more than the paper's FBPA-FOPID does on its worst joint (33 %). It has the smallest kick of
+  the five controllers (4.6e4 Nm, 1.8× below FBPA-FOPID's), a sine peak below FBPA-FOPID's and
+  under a quarter of FOPID's, and the smoothest sine torque (2.4× less variation than
+  FBPA-FOPID). The price is in the step after the kick: joint 1 runs at 99.5 % of its cap
+  (1517 of 1524 Nm) and the step torque varies the most of the five (1552 against 795–935).
+  PSO-FOPID also stays within all 24 caps, with lower peaks after the kick (856 Nm) and in the
+  sine run (291 Nm), but a kick 4× larger than FOPSO-GWO's.
+* **Tracking.** FOPSO-GWO beats this work's FBPA-FOPID and the paper's own FBPA-FOPID curves on
+  all five metrics, and the paper's table on four of the five. Against PSO-FOPID, tuned with
+  the same cost, it is better on four of the five: a quarter less overshoot (13.6 against
+  17.8 %), a third lower sine MSE, 5 % less torque and the same peak time (1.112 against
+  1.113 s). It settles 0.02 s later, and its step ITAE is 13 % higher (sine ITAE 24 % lower).
+  Under the whole-controller cost itself, PSO-FOPID's run scores slightly better (1.378
+  against 1.416): FOPSO-GWO is the better optimiser on that cost on average, not in its best
+  run (next section).
+* **Peak time** is the exception against the table, 1.11 s against 1.09 s. The table's 1.09 s
   contradicts the paper's own curves (1.26 s), and within the paper's torque it is out of
-  reach. In all eight seeds tried (best mean 1.100 s, the others 1.125–1.155 s), joint 2, the
-  shoulder that swings the whole arm, peaks at 1.23–1.31 s, and one of the three heavy joints
-  runs at 96–100 % of its torque cap. More torque buys it:
+  reach: over the eight seeds the mean peak time is 1.112–1.142 s, the three heavy joints of
+  this controller peak at 1.15–1.24 s, and joint 1 runs at its torque cap. More torque buys
+  it. With FOPSO-GWO's first settings (seed 2; `results/ablation_runs/`), the same cost with
+  the caps relaxed gives:
 
 | Torque allowed | Overshoot (%) | Adjustment (s) | Peak (s) | MSE (rad²) | Step peak after kick / cap | Kick / cap | Step total variation |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| **The paper's controllers' (this result)** | 18.6 | 1.29 | 1.100 | 1.3e-3 | 0.97 | 0.53 | 1175 |
+| The paper's controllers' | 18.6 | 1.29 | 1.100 | 1.3e-3 | 0.97 | 0.53 | 1175 |
 | 2× that | 11.2 | 1.23 | 1.090 | 8.6e-4 | 1.44 | 1.95 | 1123 |
 | Unlimited (the previous FOPSO-GWO, `Target 'FBPA-all'`) | 11.6 | 1.05 | 1.035 | 6.2e-5 | 8.33 | 4.82 | 3876 |
 
 So the previous result's lead on every metric came from about 8× the torque of the paper's own
 controllers after the step and 3.3× more torque variation. The whole-controller result gives
 up some tracking for a controller that the paper's own actuator demands can drive.
+
+The first row, the first settings' seed-2 run (whole cost 1.076), is the best whole
+controller any FOPSO-GWO run has found. It is not the one shown above: the controllers above
+are each the best of the eight runs of their optimiser's final settings, and picking from both
+FOPSO-GWO settings, sixteen runs against PSO's eight, would not be a fair comparison.
 
 ### PSO, FBPA and FOPSO-GWO as optimisers
 
@@ -173,69 +189,76 @@ optimisers themselves, `tools/compare_optimizers.m` runs plain PSO (`pso.m`), FB
 and FOPSO-GWO under the same four costs. Everything but the algorithm is the same: 30 particles
 × 100 iterations, the search space, the seed controller (the identified FOPID), the initial
 swarm for each random seed (the three share the initialisation code and its random draws), the
-cost function and its checks. Each algorithm uses its standard or published coefficients, and
-PSO the same velocity limit as FOPSO-GWO. PSO and FOPSO-GWO evaluate the cost once per particle
-and iteration (3030 evaluations per run), FBPA three times (9030).
+cost function and its checks. PSO uses its standard coefficients, FBPA the paper's, FOPSO-GWO
+its final settings (below); PSO and FOPSO-GWO limit the velocity to 0.2 of each range. PSO and
+FOPSO-GWO evaluate the cost once per particle and iteration (3030 evaluations per run), FBPA
+three times (9030).
 
 The costs are the paper's fitness (`paper`: step ITAE, Eq. 29), tracking against the paper's
 FBPA-FOPID (`fbpa`), the same against the better of it and the best FBPA run (`fbpa_all`), and
 the whole-controller cost of the final controller (`whole`: tracking, torque and per-joint
-caps). Final best cost, lower is better, over random seeds 1–4 (1–8 for `whole`):
+caps). Final best cost, lower is better, over random seeds 1–8 (FBPA: 1–4 on the first three
+costs):
 
 | Cost | Optimiser | best | median | mean | worst | mean after 3030 evaluations |
 |---|---|---:|---:|---:|---:|---:|
-| paper | PSO | **0.035** | **0.069** | **0.073** | **0.119** | **0.073** |
+| paper | PSO | **0.035** | **0.089** | **0.088** | 0.144 | **0.088** |
 | | FBPA | 0.095 | 0.140 | 0.134 | 0.159 | 0.279 |
-| | FOPSO-GWO | 0.042 | 0.133 | 0.116 | 0.156 | 0.116 |
-| fbpa | PSO | **0.350** | **0.384** | **0.390** | **0.444** | **0.390** |
+| | FOPSO-GWO | 0.087 | 0.122 | 0.116 | **0.135** | 0.116 |
+| fbpa | PSO | 0.341 | 0.379 | 0.388 | 0.444 | 0.388 |
 | | FBPA | 0.386 | 0.512 | 0.486 | 0.534 | 1.67 |
-| | FOPSO-GWO | 0.392 | 0.417 | 0.425 | 0.475 | 0.425 |
-| fbpa_all | PSO | **0.389** | **0.535** | **0.540** | **0.704** | **0.540** |
+| | FOPSO-GWO | **0.331** | **0.348** | **0.352** | **0.384** | **0.352** |
+| fbpa_all | PSO | **0.389** | **0.643** | **0.785** | **1.396** | **0.785** |
 | | FBPA | 0.449 | 1.072 | 1.224 | 2.302 | 10.1 |
-| | FOPSO-GWO | 0.459 | 0.933 | 1.157 | 2.302 | 1.157 |
+| | FOPSO-GWO | 0.518 | 1.371 | 1.193 | 1.472 | 1.193 |
 | whole | PSO | 1.378 | 2.223 | 2.181 | 2.983 | 2.181 |
-| | FBPA | 1.186 | 2.412 | 2.462 | 4.418 | 5.47 |
-| | FOPSO-GWO | **1.076** | **1.951** | **1.929** | **2.694** | **1.929** |
+| | FBPA | **1.186** | 2.412 | 2.462 | 4.418 | 5.47 |
+| | FOPSO-GWO | 1.416 | **1.718** | **1.764** | **2.160** | **1.764** |
 
-FOPSO-GWO head to head, same cost and random seed:
+FOPSO-GWO head to head, the random seeds on which it ends lower (same cost and seed):
 
-| Against | seed–cost pairs won | of which `whole` | costs with the lower mean | costs with the lower best run |
-|---|---:|---:|---:|---:|
-| PSO | 7 of 20 | 6 of 8 | 1 of 4 (`whole`) | 1 of 4 (`whole`) |
-| FBPA | 13 of 20 | 5 of 8 | 4 of 4 | 2 of 4 |
+| Cost | against PSO | against FBPA |
+|---|---:|---:|
+| paper | 1 of 8 | 3 of 4 |
+| fbpa | **6 of 8** | 4 of 4 |
+| fbpa_all | 2 of 8 | 1 of 4 |
+| whole | **7 of 8** | 6 of 8 |
 
-* **Plain PSO is the strongest optimiser on the three tracking costs.** With the same budget
-  and starting swarm it beats FOPSO-GWO on 11 of their 12 seed pairs, and has the lowest best,
-  median, mean and worst cost on each.
-* **FOPSO-GWO is the strongest on the whole-controller cost**, the one its final controller is
-  tuned with. It has the lowest best, median, mean and worst cost there, and beats PSO on 6 of 8
-  seeds and FBPA on 5 of 8. The final controller (seed 2, cost 1.076) is the best of all 24
-  `whole` runs. With 8 seeds this is suggestive, not statistically established (6 of 8 has a
-  one-sided sign-test p of 0.14).
+* **FOPSO-GWO beats PSO on two of the four costs and loses on the other two.** It is better
+  under `fbpa` (6 of 8 seeds, mean −9 %) and under `whole`, the cost of the final controller
+  (7 of 8 seeds, mean −19 %, the lowest median, mean and worst run of the three optimisers).
+  PSO is better under the paper's own fitness (7 of 8 seeds) and under `fbpa_all` (6 of 8).
+  With eight seeds, 7 of 8 is significant at about 4 % (one-sided sign test) and 6 of 8 is not
+  (14 %).
+* **FOPSO-GWO is consistent rather than far-reaching.** Under `whole` its worst run (2.16) is
+  better than PSO's median, but PSO's and FBPA's best runs (1.378, 1.186) beat its best
+  (1.416). Only under `fbpa` is the best single run its own.
 * **Against FBPA**, FOPSO-GWO has the lower mean under all four costs, with a third of FBPA's
-  evaluations. At equal evaluations FBPA is 2–9× worse. FBPA's best run beats FOPSO-GWO's
-  under two of the four costs, by 1–2 %.
+  evaluations, and the lower final cost on 14 of 20 seed pairs.
 
-#### Why plain PSO can beat the "improved" PSOs
+#### Why plain PSO beat the first FOPSO-GWO, and what the final settings change
 
-Both FBPA and FOPSO-GWO add to PSO, but adding to an optimiser does not make it better on every
-problem. Their improvements were shown on benchmark functions, from random starts, over long
-runs (the paper's Fig. 4: 500 iterations). Tuning this FOPID is a different problem: the swarm
-starts next to a good controller (the identified FOPID), the budget is 100 iterations, and
-most of the search space is unstable. What decides it is the balance between staying near the
-best points and exploring, and the classic PSO settings strike it well here. The ablation
-(`tools/ablate_optimizers.m`, cost `fbpa`, seeds 1–4, summary.md Sect. 4) changes one setting
-at a time:
+FOPSO-GWO's first settings (c1 = c2 = c3 = 1, the paper's fractional order 0.9 → 0.4), chosen
+on the paper's test functions, lost to plain PSO on all three tracking costs (11 of 12 seed
+pairs) and won only under `whole`. Both FBPA and FOPSO-GWO add to PSO, but adding to an
+optimiser does not make it better on every problem. Their improvements were shown on benchmark
+functions, from random starts, over long runs (the paper's Fig. 4: 500 iterations). Tuning this
+FOPID is a different problem: the swarm starts next to a good controller (the identified
+FOPID), the budget is 100 iterations, and most of the search space is unstable. What decides it
+is the balance between staying near the best points and exploring, and the classic PSO settings
+strike it well here. The ablation (`tools/ablate_optimizers.m`, cost `fbpa`, seeds 1–4,
+summary.md Sect. 4) changes one setting at a time:
 
 | Optimiser | mean cost | swarm, last 25 iterations |
 |---|---:|---:|
 | PSO (c = 2, inertia 0.9 → 0.4, \|v\| ≤ 0.2) | 0.390 | 397 (still exploring) |
 | PSO with c = 1 | 0.631 | 48 (collapsed) |
-| FOPSO-GWO (c = 1, fractional memory) | 0.425 | 8 (collapsed) |
-| FOPSO-GWO with c = 2 | 0.634 | 1141 (thrown about) |
-| FO-PSO alone (FOPSO-GWO without the wolves, c = 2) | 0.469 | 739 |
+| FOPSO-GWO, first settings (c = 1, fractional order 0.9 → 0.4) | 0.425 | 8 (collapsed) |
+| FOPSO-GWO, first settings with c = 2 | 0.634 | 1141 (thrown about) |
+| FO-PSO alone (the first settings without the wolves, c = 2) | 0.469 | 739 |
 | FBPA (the paper's \|v\| ≤ 1) | 0.486 | 1312 (thrown about) |
-| FBPA with \|v\| ≤ 0.2 | **0.352** | 722 |
+| FBPA with \|v\| ≤ 0.2 | 0.352 | 722 |
+| **FOPSO-GWO, final settings** (c = 1.5 / 1.5 / 1, order held at 0.9) | **0.346** | 102 |
 
 The swarm column is the mean cost of the particles' current positions: unstable candidates
 score 1e3–2e3, so a large value means the swarm is still spread over the search space, a small
@@ -247,30 +270,76 @@ one that it has collapsed onto one point.
    nothing, so FBPA is effectively a fractional-order PSO at three times the cost.
 2. **FBPA's velocity limit throws its swarm about.** The paper's \|v\| ≤ 1 is in raw gain units;
    in this search space it is the whole range, so particles jump from bound to bound (1312).
-   With PSO's \|v\| ≤ 0.2, the same FBPA becomes the best of all here (0.352 mean, with 9030
-   evaluations against 3030).
+   With PSO's \|v\| ≤ 0.2, the same FBPA does much better (0.352 mean, with 9030 evaluations
+   against 3030).
 3. **The fractional velocity memory drains momentum.** In the paper's Eq. 25 the weight on the
    last velocity is w − 1 + α, which falls from 0.79 to −0.20 over the run, and the total over
    the four remembered velocities from 0.86 to 0.03. PSO keeps an inertia of 0.9 to 0.4. On its
    own, with everything else as in PSO (FO-PSO alone), the memory makes the result worse:
    0.469 against 0.390.
-4. **FOPSO-GWO either collapses or is thrown about.** With its c = 1 the swarm has collapsed onto
-   one point by the last quarter (8); with c = 2 the grey-wolf term adds so much movement that
-   it never settles (1141). PSO with c = 1 collapses the same way and loses (0.631). So FOPSO-GWO's
-   c = 1 is the right choice for it, but it leaves the swarm with too little exploration on these
-   costs. On the whole-controller cost, where the caps and penalties make the landscape rugged,
-   the same behaviour is what found the best controller.
+4. **The first FOPSO-GWO either collapses or is thrown about.** With its c = 1 the swarm has
+   collapsed onto one point by the last quarter (8); with c = 2 the grey-wolf term adds so much
+   movement that it never settles (1141). PSO with c = 1 collapses the same way and loses
+   (0.631).
 5. **Four seeds are not enough to rank them precisely.** FBPA with \|v\| ≤ 0.2 and FO-PSO alone
    are the same search, differing only in their random numbers (point 1), yet their means differ
-   by 0.12, with one seed 0.24 apart. The direction of the main results is consistent (PSO
-   beats FOPSO-GWO on 11 of 12 seed pairs on the tracking costs; FOPSO-GWO beats PSO on 6 of 8
-   on the whole cost), but the size of every gap is uncertain. A claim for a paper needs about
-   20–30 seeds per optimiser and a significance test.
+   by 0.12, with one seed 0.24 apart.
 
-What the comparison supports, then: FOPSO-GWO beats the paper's FBPA as published, at a third
-of its evaluations, and found the best whole controller of the three. It does not support
-"FOPSO-GWO is a better PSO" in general. On tracking-only costs, plain PSO with its standard
-settings did better, and FOPSO-GWO's weakness there is premature collapse of the swarm.
+**The final settings** follow from points 3 and 4. The fractional order is held at 0.9, so the
+memory keeps PSO's momentum (total 0.86 → 0.36, like PSO's inertia) while still remembering
+four velocities. And PSO's total pull of 4 is split between the three attractors, c1 = c2 = 1.5
+and c3 = 1, instead of adding the wolves on top. They were chosen on development seeds 101–104,
+which the comparison never uses (`tools/develop_fopso_gwo.m`, all 14 candidates in summary.md
+Sect. 4). Some of them, mean cost against PSO's on the same seeds:
+
+| Candidate | `paper` | `fbpa` |
+|---|---:|---:|
+| First settings | | +8.9 % |
+| **Final: c = 1.5 / 1.5 / 1, order 0.9** | **−18.6 %** | **−9.4 %** |
+| c = 2 / 1 / 1 (PSO's cognitive pull kept) | −5.0 % | −11.1 % |
+| Starting as PSO, the wolves' share growing over the run | −20.6 % | +2.6 % |
+| Half the swarm pulled as in PSO, outside the pack | −9.5 % | +0.8 % |
+
+The first round of development used `fbpa` only. On the comparison's seeds 1–4 the chosen
+settings then lost the paper's fitness to PSO on all four seeds, so a second round added
+`paper` to the development, with four new candidates designed for it. Under a rule fixed before
+its last two candidates ran (beat PSO's mean under both costs, by the largest margin on the
+weaker of the two), the same settings stayed. Nothing was chosen on the comparison's seeds;
+their runs are the ones reported above.
+
+What the final settings changed, on the comparison's seeds (seeds won against PSO):
+
+| Cost | first settings (seeds 1–4; `whole` 1–8) | final settings (seeds 1–8) |
+|---|---:|---:|
+| paper | 0.116 (0 of 4) | 0.116 (1 of 8) |
+| fbpa | 0.425 (0 of 4) | **0.352 (6 of 8)** |
+| fbpa_all | 1.157 (1 of 4) | 1.193 (2 of 8) |
+| whole | 1.929 (6 of 8) | **1.764 (7 of 8)** |
+
+**Why it is still not better under every cost.** The two costs it loses reward a swarm that
+keeps exploring to the end, and the final settings, like the grey-wolf term itself, trade
+some exploration for refinement around the best points (swarm column: 102 against PSO's 397).
+* `fbpa_all` has a cliff: every paper metric must beat the better of the paper's FBPA-FOPID and
+  the FBPA run, whose peak time is 1.053 s. Of the PSO and FOPSO-GWO runs, every one that
+  reached a peak time of 1.048 s or less scores 0.76 or better, every one at 1.068 s or more
+  1.28 or worse. PSO reached the faster region in 6 of 8 seeds, FOPSO-GWO in 2.
+* Under `paper`, PSO's two best runs (0.035, 0.053) found a region with joint 3's Kp near the
+  top of its range that no FOPSO-GWO run reached; without them PSO still has the lower mean
+  (0.102 against 0.116). On the development seeds the order was the reverse (0.091 against
+  0.112): under this cost the spread from seed to seed is as large as the difference.
+
+No candidate on the development seeds beat PSO under both development costs by more than the
+final settings did: those designed to explore more either lost the advantage under `fbpa`
+(starting as PSO, half the swarm as PSO) or gained less under `paper` (c = 2 / 1 / 1). Going
+on, with the comparison's seeds now seen, would be tuning to them.
+
+What the comparison supports, then: FOPSO-GWO with its final settings has a lower mean cost
+than the paper's FBPA under every cost (under `fbpa_all` only just, and on one seed of four),
+at a third of its evaluations, and beats plain PSO where refinement matters:
+under the whole-controller cost, the one its controller is tuned with (7 of 8 seeds), and under
+`fbpa`. Where wide exploration matters, the paper's fitness and `fbpa_all`, plain PSO with its
+standard settings is better. "FOPSO-GWO is a better PSO" in general would need 20–30 seeds per
+optimiser, a significance test, and more than one problem.
 
 ### The algorithms
 
@@ -342,7 +411,7 @@ step  <- 0.95 step   after every iteration, from 0.0001
     controllers needs (all identified gain sets), times `CapScale` (default 1); and no joint
     may overshoot more than the paper's FBPA-FOPID figures do on their worst joint (33.1 %);
   * every paper metric must still beat the paper's FBPA-FOPID table (regret 2).
-  The result above is the best of random seeds 1–8 (seed 2).
+  The result above is the best of random seeds 1–8 (seed 6).
 * **Target.** With `Target = 'FBPA'`, the five paper metrics are scored against the paper's
   FBPA-FOPID values (Tables 3 and 4), and any metric not yet better than FBPA's is penalised
   extra. `Target = 'FBPA-all'` scores each metric against the better of the paper's value and
@@ -452,8 +521,9 @@ tune_fopid_hybrid.m         tunes the 30 FOPID parameters -> results/<optimizer>
 ├── fbpa.m                  fractional-order beetle antennae PSO (the paper's FBPA)
 ├── pso.m                   plain PSO, the baseline
 └── fopid_fitness.m         cost of one gain set (ITAE + the paper's metrics)
-tools/compare_optimizers.m  PSO, FBPA, FOPSO-GWO x 4 costs x 4-8 seeds -> results/optimizer_runs/
-tools/ablate_optimizers.m   the same with one setting changed (why PSO wins) -> results/ablation_runs/
+tools/compare_optimizers.m  PSO, FBPA, FOPSO-GWO x 4 costs x 8 seeds -> results/optimizer_runs/
+tools/ablate_optimizers.m   the same with one setting changed (why PSO won) -> results/ablation_runs/
+tools/develop_fopso_gwo.m   the candidate FOPSO-GWO settings on development seeds -> results/dev_runs/
 
 simulate_mex.c              the closed-loop simulation in C, used automatically once built
 build_mex.m                 compiles it (mkoctfile in Octave, mex in MATLAB)
