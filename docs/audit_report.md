@@ -321,7 +321,7 @@ RMS difference to the published curves, per joint (rad):
 | MSE, Σ\|τ\| | Table 4 text | over 5001 samples | over the 501 samples (3.2) |
 | Settling time | "adjustment time", band not given | `stepinfo`, 2 % | own implementation, 5 % band (3.5) |
 | Toolboxes | Simulink | Control System Toolbox | none (Octave core) |
-| FBPA optimiser | Sect. 3 | not implemented | not implemented (its published curves are now available in `data/` for the next step) |
+| FBPA optimiser | Sect. 3 | not implemented | not implemented in the audit; added on branch `brand-new-day` (`fbpa.m`, with the paper's Sect. 4 settings) |
 
 Octave port:
 * `robot_dynamics.m` runs all seven Newton–Euler recursions (six columns of M plus the bias

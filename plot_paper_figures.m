@@ -1,5 +1,5 @@
 function plot_paper_figures(results, outdir)
-%PLOT_PAPER_FIGURES  Reproduce the paper's figures for PID, FOPID and FOPSO-GWO.
+%PLOT_PAPER_FIGURES  Reproduce the paper's figures: PID, FOPID, FBPA-FOPID and FOPSO-GWO.
 %
 %   PLOT_PAPER_FIGURES(results, outdir)  with results from MAIN.
 %
@@ -12,20 +12,20 @@ function plot_paper_figures(results, outdir)
 %     Figs 13-18  sine response, one figure per joint, same two panels
 %     Fig 19      driving torque with sine response, 3x2 grid, "jointN tau/N*m"
 %
-%   Colours are the paper's: reference ("dir") red, PID green, FOPID blue;
-%   in the error panels of the sine figures and in Fig 19 the paper draws
-%   FOPID in red, which is kept.  All signals are plotted at the paper's
-%   0.01 s logging interval, so the step reference rises between t = 0.99 s
-%   and 1.00 s exactly as in the published figures.
+%   Colours are the paper's: reference ("dir") red, PID green, FOPID blue,
+%   FBPA-FOPID black; in the error panels of the sine figures and in Fig 19
+%   the paper draws FOPID in red, which is kept.  All signals are plotted at
+%   the paper's 0.01 s logging interval, so the step reference rises between
+%   t = 0.99 s and 1.00 s exactly as in the published figures.
 %
-%   The paper's figures also carry an FBPA-FOPID curve.  In its place, when
-%   results has a FOPSO_GWO entry (the FOPID re-tuned by TUNE_FOPID_HYBRID),
-%   that controller is drawn as a third, magenta curve in Figs 6-19.
+%   FBPA-FOPID (results.FBPA, the FOPID tuned by the re-implemented FBPA) and
+%   FOPSO-GWO (results.FOPSO_GWO, this work's optimiser) are drawn when
+%   present, the latter in magenta.
 %
 %   In addition, compare_step.png and compare_sine.png overlay every
 %   published curve (thick black, read from the paper's vector graphics)
-%   and the reproduction (thin colour), joint by joint, with the rms
-%   difference in each title.
+%   and this work's (thin colour), joint by joint, for PID, FOPID and, when
+%   present, FBPA-FOPID, with the rms difference in each title.
 %
 %   Works in Octave (gnuplot or Qt toolkit) and MATLAB.
 %
@@ -37,11 +37,14 @@ if ~exist(outdir, 'dir'), mkdir(outdir); end
 RED     = [1 0 0];
 GREEN   = [0 1 0];
 BLUE    = [0 0 1];
+BLACK   = [0 0 0];
 MAGENTA = [0.85 0 0.85];
+ORANGE  = [0.95 0.5 0];
 
-has_hybrid = isfield(results, 'FOPSO_GWO');
-names = {'PID', 'FOPID'};
-if has_hybrid, names{end+1} = 'FOPSO-GWO'; end
+% the tuned controllers present, drawn after PID and FOPID
+extra = {'FBPA', 'FBPA-FOPID', BLACK; 'FOPSO_GWO', 'FOPSO-GWO', MAGENTA};
+extra = extra(isfield(results, extra(:, 1)), :);
+names = [{'PID', 'FOPID'}, extra(:, 2)'];
 
 % ---- Figs 6-11 (step) and 13-18 (sine): per joint, two panels ------------
 experiments = {'step', 6; 'sine', 13};
@@ -59,9 +62,9 @@ for ex = 1:size(experiments, 1)
         plot(run_pid.t,   run_pid.r(j, :),   'Color', RED,   'LineWidth', 1);
         plot(run_pid.t,   run_pid.q(j, :),   'Color', GREEN, 'LineWidth', 1);
         plot(run_fopid.t, run_fopid.q(j, :), 'Color', BLUE,  'LineWidth', 1);
-        if has_hybrid
-            run_h = results.FOPSO_GWO.(name);
-            plot(run_h.t, run_h.q(j, :), 'Color', MAGENTA, 'LineWidth', 1);
+        for x = 1:size(extra, 1)
+            run_x = results.(extra{x, 1}).(name);
+            plot(run_x.t, run_x.q(j, :), 'Color', extra{x, 3}, 'LineWidth', 1);
         end
         style_axis(sprintf('joint%d /rad', j));
         legend([{'dir'}, names], 'Location', 'northeast');
@@ -71,8 +74,9 @@ for ex = 1:size(experiments, 1)
         subplot(1, 2, 2); hold on; grid on; box on;
         plot(run_pid.t,   run_pid.r(j, :)   - run_pid.q(j, :),   'Color', GREEN,     'LineWidth', 1);
         plot(run_fopid.t, run_fopid.r(j, :) - run_fopid.q(j, :), 'Color', fopid_err, 'LineWidth', 1);
-        if has_hybrid
-            plot(run_h.t, run_h.r(j, :) - run_h.q(j, :), 'Color', MAGENTA, 'LineWidth', 1);
+        for x = 1:size(extra, 1)
+            run_x = results.(extra{x, 1}).(name);
+            plot(run_x.t, run_x.r(j, :) - run_x.q(j, :), 'Color', extra{x, 3}, 'LineWidth', 1);
         end
         style_axis(sprintf('joint%d err/rad', j));
         legend(names, 'Location', 'northeast');
@@ -93,8 +97,9 @@ for tq = 1:size(torques, 1)
         subplot(3, 2, j); hold on; grid on; box on;
         plot(results.PID.(name).t,   results.PID.(name).u(j, :),   'Color', GREEN,          'LineWidth', 1);
         plot(results.FOPID.(name).t, results.FOPID.(name).u(j, :), 'Color', torques{tq, 4}, 'LineWidth', 1);
-        if has_hybrid
-            plot(results.FOPSO_GWO.(name).t, results.FOPSO_GWO.(name).u(j, :), 'Color', MAGENTA, 'LineWidth', 1);
+        for x = 1:size(extra, 1)
+            run_x = results.(extra{x, 1}).(name);
+            plot(run_x.t, run_x.u(j, :), 'Color', extra{x, 3}, 'LineWidth', 1);
         end
         style_axis(sprintf(torques{tq, 3}, j));
         xlabel('time / s');
@@ -106,18 +111,20 @@ end
 % ---- published curve vs reproduction, joint by joint ---------------------
 for ex = {'step', 'sine'}
     name = ex{1};
-    fig = figure('Visible', 'off', 'Position', [50 50 1200 1500], 'Color', 'w');
-    ctrl = {'PID', GREEN; 'FOPID', BLUE};
-    for c = 1:2
+    ctrl = {'PID', 'PID', GREEN; 'FOPID', 'FOPID', BLUE};
+    if isfield(results, 'FBPA'), ctrl(end+1, :) = {'FBPA', 'FBPA-FOPID', ORANGE}; end
+    nc = size(ctrl, 1);
+    fig = figure('Visible', 'off', 'Position', [50 50 600*nc 1500], 'Color', 'w');
+    for c = 1:nc
         sim = results.(ctrl{c, 1}).(name);
         pap = paper_curves(ctrl{c, 1}, name);
         for j = 1:6
-            subplot(6, 2, 2*(j-1) + c); hold on; grid on; box on;
+            subplot(6, nc, nc*(j-1) + c); hold on; grid on; box on;
             plot(pap.t, pap.r(j, :), 'Color', [1 .6 .6], 'LineWidth', 0.8);
             plot(pap.t, pap.q(j, :), 'k', 'LineWidth', 3);
-            plot(sim.t, sim.q(j, :), '-', 'Color', ctrl{c, 2}, 'LineWidth', 1.2);
+            plot(sim.t, sim.q(j, :), '-', 'Color', ctrl{c, 3}, 'LineWidth', 1.2);
             rms_err = sqrt(mean((sim.q(j, :) - pap.q(j, :)).^2));
-            title(sprintf('%s joint %d (%s):  rms difference %.3f rad', ctrl{c, 1}, j, name, rms_err));
+            title(sprintf('%s joint %d (%s):  rms difference %.3f rad', ctrl{c, 2}, j, name, rms_err));
             ylabel(sprintf('joint%d /rad', j));
             xlim([0 5]);
             light_grid();

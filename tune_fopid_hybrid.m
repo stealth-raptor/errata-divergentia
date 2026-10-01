@@ -1,15 +1,21 @@
 function tuned = tune_fopid_hybrid(opts)
-%TUNE_FOPID_HYBRID  Tune the six FOPID controllers with the FO-PSO/GWO hybrid.
+%TUNE_FOPID_HYBRID  Tune the six FOPID controllers with FOPSO-GWO or the paper's FBPA.
 %
-%   tuned = TUNE_FOPID_HYBRID()        paper budget: 30 particles x 100 iterations
+%   tuned = TUNE_FOPID_HYBRID()        FOPSO-GWO, paper budget: 30 particles x 100 iterations
 %   tuned = TUNE_FOPID_HYBRID(opts)    override any option below
 %
 %   Searches all 30 FOPID parameters at once (Kp, Ki, Kd, lambda, mu for each
-%   of the six joints, as in the paper) with HYBRID_FOPSO_GWO, starting from
-%   the existing FOPID gains, and saves the best gain set to
-%   results/fopso_gwo_gains.mat. CONTROLLER_GAINS('FOPSO_GWO') reads that
-%   file, and MAIN then adds the tuned controller to the comparison and the
-%   figures.
+%   of the six joints, as in the paper), starting from the existing FOPID
+%   gains, with
+%     Optimizer = 'FOPSO-GWO'  (default) HYBRID_FOPSO_GWO, this work's
+%                              optimiser -> results/fopso_gwo_gains.mat
+%     Optimizer = 'FBPA'       FBPA, the paper's optimiser, with the paper's
+%                              settings and, by default, its fitness (step
+%                              ITAE, Eq. 29) -> results/fbpa_gains.mat
+%   CONTROLLER_GAINS('FOPSO_GWO') and CONTROLLER_GAINS('FBPA') read those
+%   files, and MAIN then adds the tuned controllers to the comparison and the
+%   figures.  The two optimisers share the search space, the seed and, for
+%   the same RandomSeed, the initial swarm.
 %
 %   Search space. The gains span eight orders of magnitude, so Kp, Ki and Kd
 %   are searched on a log10 scale; lambda and mu linearly. Everything is
@@ -17,13 +23,18 @@ function tuned = tune_fopid_hybrid(opts)
 %
 %   Cost. FOPID_FITNESS, normalised by the existing FOPID so that the
 %   baseline scores exactly 1.  opts.Fitness selects
-%     'composite'  (default) ITAE of both experiments plus the five paper
-%                  metrics, with an extra penalty for any metric worse than
-%                  FOPID
+%     'composite'  (the default for FOPSO-GWO) ITAE of both experiments plus
+%                  the five paper metrics, with an extra penalty for any
+%                  metric worse than FOPID
 %     'torque'     as 'composite', but sine torque weighted 3x and the step
 %                  peak torque (the spike at the step instant) added with
 %                  weight 2, both also penalised if worse than the baseline
-%     'itae'       the paper's own fitness: step ITAE only (Eq. 29)
+%     'itae'       the paper's own fitness: step ITAE only (Eq. 29); the
+%                  default for FBPA.  Candidates must still complete the
+%                  sine run, since the paper uses the same gains for it
+%
+%   The paper's FBPA-FOPID, reproduced with the paper's optimiser and fitness:
+%     tune_fopid_hybrid(struct('Optimizer', 'FBPA'))
 %
 %   Target.  By default (Target = 'baseline') every metric is scored
 %   relative to the FOPID baseline.  With Target = 'FBPA' the five paper
@@ -42,22 +53,26 @@ function tuned = tune_fopid_hybrid(opts)
 %                              'PopSize', 12, 'MaxIter', 10))
 %
 %   Runtime. One cost evaluation is two full 5 s simulations; the first
-%   iteration prints an ETA. With the paper's budget (3000 evaluations) this
-%   is a long, overnight-scale run, so:
+%   iteration prints an ETA.  With the paper's budget (3000 evaluations;
+%   FBPA's antennae triple that) and the compiled simulation (BUILD_MEX)
+%   FOPSO-GWO takes about 6 min and FBPA about 15 min; without it this is a
+%   long, overnight-scale run, so:
 %     * opts.UseParallel = true evaluates the swarm with PARFOR (Parallel
 %       Computing Toolbox; on by default when the toolbox is installed);
 %     * a checkpoint is written after every iteration, and an interrupted
 %       run resumes from it when called again with the same options (a
 %       checkpoint from a run with other options is ignored with a warning)
-%       (delete results/fopso_gwo_checkpoint.mat to start afresh; it is
+%       (delete results/<optimizer>_checkpoint.mat to start afresh; it is
 %       removed automatically once a run completes);
 %     * unstable candidates are aborted as soon as an error passes 5 rad;
 %     * a quick trial, e.g. tune_fopid_hybrid(struct('PopSize', 12,
 %       'MaxIter', 15)), already improves on the baseline because the
 %       baseline is in the swarm.
 %
-%   Options (besides those of HYBRID_FOPSO_GWO, which are passed through):
-%     Fitness      'composite', 'torque' or 'itae'
+%   Options (besides those of HYBRID_FOPSO_GWO or FBPA, which are passed through):
+%     Optimizer    'FOPSO-GWO' (default) or 'FBPA'
+%     Fitness      'composite', 'torque' or 'itae'; default 'composite' for
+%                  FOPSO-GWO and 'itae' (the paper's) for FBPA
 %     Weights      1x8 weights of FOPID_FITNESS (overrides Fitness)
 %     Target       'baseline' (default) or 'FBPA', see above
 %     Robust       penalise numerically ill-conditioned closed loops (see
@@ -74,10 +89,12 @@ function tuned = tune_fopid_hybrid(opts)
 %                  default [-2 -4 -1 0.05 0.05] ... [5 5 3 1.95 1.95] contains
 %                  every gain of the identified FOPID, so the seed enters the
 %                  swarm unclipped
-%     OutFile      where the tuned gains are saved; an existing file is
-%                  first copied to <name>_prev.mat
+%     OutFile      where the tuned gains are saved, default
+%                  results/<optimizer>_gains.mat; an existing file is first
+%                  copied to <name>_prev.mat
+%     Checkpoint   default results/<optimizer>_checkpoint.mat
 %
-%   See also HYBRID_FOPSO_GWO, FOPID_FITNESS, CONTROLLER_GAINS, MAIN.
+%   See also HYBRID_FOPSO_GWO, FBPA, FOPID_FITNESS, CONTROLLER_GAINS, MAIN.
 
 here = fileparts(mfilename('fullpath'));
 cd(here);
@@ -140,23 +157,31 @@ for i = 1:numel(opts.Start)
     end
 end
 
-opt_opts = rmfield(opts, {'Fitness', 'Weights', 'Regret', 'Baseline', 'Start', 'Bounds', 'OutFile', 'Target', 'Robust'});
+opt_opts = rmfield(opts, {'Optimizer', 'Fitness', 'Weights', 'Regret', 'Baseline', 'Start', ...
+                          'Bounds', 'OutFile', 'Target', 'Robust'});
 opt_opts.Seeds = min(max(z_seed, 0), 1);
 % a checkpoint is only resumed if it was written for the same cost function
-opt_opts.CheckpointTag = {fit.weights, fit.regret, fit.time_offset, fit.robust, B.lo, B.hi, ref, opts.Start};
+opt_opts.CheckpointTag = {opts.Optimizer, fit.weights, fit.regret, fit.time_offset, fit.robust, ...
+                          B.lo, B.hi, ref, opts.Start};
 
-fprintf('FO-PSO/GWO: %d particles x %d iterations, 30 parameters, fitness ''%s'', start %s\n', ...
-        opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness, strjoin(opts.Start, ' + '));
-[z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
+fprintf('%s: %d particles x %d iterations, 30 parameters, fitness ''%s'', start %s\n', ...
+        opts.Optimizer, opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness, strjoin(opts.Start, ' + '));
+if strcmpi(opts.Optimizer, 'FBPA')
+    [z_best, info] = fbpa(cost, B.n, opt_opts);
+else
+    [z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
+end
 
 gains = decode(z_best, B);
 [J, raw] = fopid_fitness(P, gains, ref, fit);
 fprintf('\nBest cost %.4f (%s = 1)\n', J, ref_name);
-print_comparison(opts.Baseline, base_raw, raw);
+print_comparison(opts.Optimizer, opts.Baseline, base_raw, raw);
 if strcmpi(opts.Target, 'FBPA')
-    print_comparison('FBPA target', ref, raw);
+    print_comparison(opts.Optimizer, 'FBPA target', ref, raw);
 end
 
+tuned.optimizer = opts.Optimizer;
+tuned.fitness_name = opts.Fitness;
 tuned.gains    = gains;
 tuned.cost     = J;
 tuned.metrics  = raw;
@@ -214,11 +239,11 @@ fprintf(['  %s: ITAE step %.4g, ITAE sine %.4g, overshoot %.1f %%, adjustment %.
          'peak %.2f s, MSE %.3e, torque %.4g, step peak torque %.4g\n'], name, raw);
 end
 
-function print_comparison(name, ref, raw)
+function print_comparison(optimizer, name, ref, raw)
 labels = {'ITAE step', 'ITAE sine', 'Step overshoot (%)', 'Step adjustment time (s)', ...
           'Step peak time (s)', 'Sine MSE (rad^2)', 'Sine torque (Nm)', ...
           'Step peak torque (Nm)'};
-fprintf('\n%-26s %12s %12s %9s\n', 'Metric', name, 'FOPSO-GWO', 'change');
+fprintf('\n%-26s %12s %12s %9s\n', 'Metric', name, optimizer, 'change');
 for k = 1:8
     fprintf('%-26s %12.4g %12.4g %+8.1f%%\n', labels{k}, ref(k), raw(k), 100 * (raw(k) / ref(k) - 1));
 end
@@ -229,14 +254,21 @@ function opts = set_defaults(opts)
 % PARFOR needs MATLAB's Parallel Computing Toolbox; Octave runs it serially
 has_pct = ~exist('OCTAVE_VERSION', 'builtin') && ~isempty(ver('parallel')) ...
           && license('test', 'Distrib_Computing_Toolbox');
-d = struct('PopSize', 30, 'MaxIter', 100, 'Fitness', 'composite', 'Weights', [], ...
+if ~isfield(opts, 'Optimizer'), opts.Optimizer = 'FOPSO-GWO'; end
+switch upper(strrep(opts.Optimizer, '_', '-'))
+    case 'FOPSO-GWO', opts.Optimizer = 'FOPSO-GWO';  fitness = 'composite';
+    case 'FBPA',      opts.Optimizer = 'FBPA';       fitness = 'itae';
+    otherwise, error('tune_fopid_hybrid:optimizer', 'unknown optimizer ''%s''', opts.Optimizer);
+end
+stem = lower(strrep(opts.Optimizer, '-', '_'));
+d = struct('PopSize', 30, 'MaxIter', 100, 'Fitness', fitness, 'Weights', [], ...
            'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, 'Target', 'baseline', ...
            'Robust', exist('simulate_mex') == 3, ...                       %#ok<EXIST>
            'Bounds', struct('lo', [-2 -4 -1 0.05 0.05], 'hi', [5 5 3 1.95 1.95]), ...
            'UseParallel', has_pct, ...
-           'Checkpoint', fullfile('results', 'fopso_gwo_checkpoint.mat'), ...
+           'Checkpoint', fullfile('results', [stem '_checkpoint.mat']), ...
            'Resume', true, ...
-           'OutFile', fullfile('results', 'fopso_gwo_gains.mat'));
+           'OutFile', fullfile('results', [stem '_gains.mat']));
 f = fieldnames(d);
 for i = 1:numel(f)
     if ~isfield(opts, f{i}), opts.(f{i}) = d.(f{i}); end
