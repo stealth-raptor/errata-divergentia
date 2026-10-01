@@ -46,9 +46,11 @@ assert(same && a.diverged, 'the abort path differs');
 
 fprintf('speed-up %.0fx (%.1f s for the .m runs, %.2f s compiled)\n', t_m / t_c, t_m, t_c);
 % positions to 1e-8 rad (the round-off floor of the least well-conditioned
-% gain set, FOPID/sine, is ~5e-9 rad); torques to 1e-5 relative, since the
-% fractional derivatives (mu up to 1.8) amplify that floor
-assert(worst_q < 1e-8 && worst_u < 1e-5, 'simulate_mex and the .m loop disagree');
+% gain sets, FOPID/sine and FBPA/shared, is ~6e-9 rad); torques to 1e-4
+% relative, since the controller's fractional derivative amplifies that
+% floor by about Kd (1/dt)^mu: on FBPA/shared joint 1 (Kd 57, mu 1.43) the
+% 6e-9 rad becomes 8e-3 Nm, 2.3e-5 of the 347 Nm peak
+assert(worst_q < 1e-8 && worst_u < 1e-4, 'simulate_mex and the .m loop disagree');
 fprintf('check_mex: simulate_mex and the .m loop agree (max |dq| %.1e rad, max |du|/max|u| %.1e)\n', ...
         worst_q, worst_u);
 end
