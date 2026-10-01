@@ -11,7 +11,7 @@ function plot_convergence(runs, file)
 
 costs  = {'paper',    'paper: step ITAE (Eq. 29), FOPID = 1'
           'fbpa',     'fbpa: paper metrics against the paper''s FBPA-FOPID'
-          'fbpa_all', 'fbpa\_all: against the paper''s and the best FBPA run'
+          'fbpa_all', 'fbpa_all: against the paper''s and the best FBPA run'
           'whole',    'whole: the whole-controller cost'};
 costs  = costs(ismember(costs(:, 1), {runs.cost}), :);
 nc = size(costs, 1);
@@ -38,7 +38,7 @@ for c = 1:nc
     try, set(gca, 'GridColor', [0.8 0.8 0.8], 'GridAlpha', 0.6); catch, end
     xlabel('cost evaluations');
     ylabel('best cost');
-    title(costs{c, 2});
+    title(costs{c, 2}, 'Interpreter', 'none');
     if ~isempty(handles), legend(handles, labels, 'Location', 'northeast'); end
 end
 print(fig, file, '-dpng', '-r150');

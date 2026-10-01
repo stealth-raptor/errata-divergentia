@@ -82,48 +82,74 @@ for the overshoot, the worst joint of the paper's own FBPA-FOPID figures (%):
 
 FOPSO-GWO stays within 24 of the 24 caps.
 
-## 4. The FBPA and FOPSO-GWO optimisers: same costs, seeds and budget
+## 4. The optimisers: PSO, FBPA and FOPSO-GWO under the same costs, seeds and budget
 
-Each optimiser was run with random seeds 1, 2, 3, 4 under 3 costs (`tools/compare_optimizers.m`),
-with the paper's budget of 30 particles x 100 iterations, the same search space, the same
-seed (the identified FOPID) and, for each random seed, the same initial swarm:
+`tools/compare_optimizers.m` runs PSO, FBPA, FOPSO-GWO under 4 costs. For a fair comparison
+everything but the algorithm is the same:
+
+* 30 particles x 100 iterations (the paper's FBPA budget), the same search space and the
+  same seed controller (the identified FOPID);
+* for each random seed the same initial swarm: the optimisers share the initialisation code
+  and its random draws;
+* the same cost function, conditioning check and early abort of unstable candidates;
+* each algorithm with its standard or published coefficients: PSO c1 = c2 = 2 and inertia
+  0.9 -> 0.4 (the paper's improved PSO, Eqs. 23-24), FBPA the paper's Sect. 4 settings,
+  FOPSO-GWO c1 = c2 = c3 = 1; PSO and FOPSO-GWO limit |v| to 0.2 of each range, FBPA to 1;
+* PSO and FOPSO-GWO evaluate the cost once per particle and iteration (3030 evaluations), FBPA
+  three times (its beetle antennae).
+
+The costs:
 
 * **paper:** the paper's fitness, ITAE of the step response (Eq. 29), relative to the FOPID
   (the FOPID scores 1).
-* **fbpa:** this work's cost: both ITAEs relative to the FOPID and the five paper metrics
-  relative to the paper's FBPA-FOPID, with a penalty on every metric not better than it.
+* **fbpa:** both ITAEs relative to the FOPID and the five paper metrics relative to the
+  paper's FBPA-FOPID, with a penalty on every metric not better than it.
 * **fbpa_all:** the same, with each paper metric scored against the better of the paper's
-  FBPA-FOPID and the best FBPA run under the paper's fitness (`results/fbpa_gains.mat`),
-  so a ratio below 1 on a metric means beating both.
+  FBPA-FOPID and the best FBPA run under the paper's fitness (`results/fbpa_gains.mat`).
+* **whole:** the whole-controller cost of this work's final controller (Sect. 3).
 
-Lower is better. FBPA's beetle antennae cost two extra evaluations per particle and
-iteration, so for the same 100 iterations it uses three times the evaluations of FOPSO-GWO.
-The last column compares at equal evaluations: the best cost each run had reached after
-3030 evaluations (FOPSO-GWO's whole run, FBPA's first 33 iterations).
+Final best cost (lower is better), over the random seeds run; the last column compares at
+equal evaluations, the best cost each run had reached after 3030 evaluations (FBPA's first
+33 iterations).
 
-| Cost | Optimiser | seed 1 | seed 2 | seed 3 | seed 4 | mean | best | evaluations per run | mean after 3030 evaluations |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| paper | FBPA | 0.0955 | 0.1458 | 0.1347 | 0.1591 | 0.1338 | 0.0955 | 9030 | 0.2786 |
-| paper | FOPSO-GWO | 0.1412 | 0.1250 | 0.0419 | 0.1562 | 0.1161 | 0.0419 | 3030 | 0.1161 |
-| fbpa | FBPA | 0.3856 | 0.5340 | 0.5046 | 0.5191 | 0.4858 | 0.3856 | 9030 | 1.6694 |
-| fbpa | FOPSO-GWO | 0.4242 | 0.4090 | 0.4748 | 0.3916 | 0.4249 | 0.3916 | 3030 | 0.4249 |
-| fbpa_all | FBPA | 1.1536 | 0.4491 | 2.3021 | 0.9910 | 1.2239 | 0.4491 | 9030 | 10.0992 |
-| fbpa_all | FOPSO-GWO | 2.3023 | 0.4593 | 1.3078 | 0.5580 | 1.1568 | 0.4593 | 3030 | 1.1568 |
+| Cost | Optimiser | runs | best | median | mean | worst | mean after 3030 evaluations |
+|---|---|---:|---:|---:|---:|---:|---:|
+| paper | PSO | 4 | 0.0352 | 0.0685 | 0.0727 | 0.1186 | 0.0727 |
+| paper | FBPA | 4 | 0.0955 | 0.1402 | 0.1338 | 0.1591 | 0.2786 |
+| paper | FOPSO-GWO | 4 | 0.0419 | 0.1331 | 0.1161 | 0.1562 | 0.1161 |
+| fbpa | PSO | 4 | 0.3495 | 0.3842 | 0.3904 | 0.4437 | 0.3904 |
+| fbpa | FBPA | 4 | 0.3856 | 0.5118 | 0.4858 | 0.5340 | 1.6694 |
+| fbpa | FOPSO-GWO | 4 | 0.3916 | 0.4166 | 0.4249 | 0.4748 | 0.4249 |
+| fbpa_all | PSO | 4 | 0.3886 | 0.5346 | 0.5405 | 0.7043 | 0.5405 |
+| fbpa_all | FBPA | 4 | 0.4491 | 1.0723 | 1.2239 | 2.3021 | 10.0992 |
+| fbpa_all | FOPSO-GWO | 4 | 0.4593 | 0.9329 | 1.1568 | 2.3023 | 1.1568 |
+| whole | PSO | 8 | 1.3779 | 2.2230 | 2.1810 | 2.9826 | 2.1810 |
+| whole | FBPA | 8 | 1.1864 | 2.4115 | 2.4620 | 4.4183 | 5.4653 |
+| whole | FOPSO-GWO | 8 | 1.0764 | 1.9514 | 1.9294 | 2.6937 | 1.9294 |
 
-Head to head, FOPSO-GWO reached the lower final cost on 8 of 12 seed and cost pairs, the
-lower mean under 3 of 3 costs and the lower best run under 1 of 3. At equal evaluations
-it had the lower mean under 3 of 3 costs.
+Head to head, FOPSO-GWO against each of the others (same cost and random seed):
+
+| FOPSO-GWO against | seed and cost pairs with the lower final cost | costs with the lower mean | costs with the lower best run | costs with the lower mean at 3030 evaluations |
+|---|---:|---:|---:|---:|
+| PSO | 7 of 20 | 1 of 4 | 1 of 4 | 1 of 4 |
+| FBPA | 13 of 20 | 4 of 4 | 2 of 4 | 4 of 4 |
 
 The best run of each, on the paper's metrics:
 
 | Cost | Optimiser (seed) | ITAE step | ITAE sine | Overshoot (%) | Adjustment time (s) | Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) | better than the paper's FBPA-FOPID | better than this work's FBPA-FOPID |
 |---|---|---:|---:|---:|---:|---:|---:|---:|:---:|:---:|
+| paper | PSO (3) | 0.101 | 0.1409 | 5.1 | 1.026 | 1.028 | 2.150e-03 | 4.394e+05 | 4 of 5 | 4 of 5 |
 | paper | FBPA (1) | 0.2742 | 0.4428 | 26.9 | 1.116 | 1.053 | 2.734e-04 | 1.113e+04 | 4 of 5 | 3 of 5 |
 | paper | FOPSO-GWO (3) | 0.1204 | 0.09293 | 14.8 | 1.052 | 1.038 | 6.890e-04 | 1.996e+05 | 4 of 5 | 4 of 5 |
+| fbpa | PSO (1) | 0.8914 | 0.7566 | 7.1 | 1.139 | 1.065 | 2.878e-04 | 9691 | 5 of 5 | 5 of 5 |
 | fbpa | FBPA (1) | 0.9997 | 0.8657 | 7.5 | 1.142 | 1.078 | 3.459e-04 | 9629 | 5 of 5 | 5 of 5 |
 | fbpa | FOPSO-GWO (4) | 0.6952 | 0.5673 | 10.3 | 1.162 | 1.077 | 2.472e-04 | 9427 | 5 of 5 | 5 of 5 |
+| fbpa_all | PSO (4) | 0.1752 | 0.2028 | 8.1 | 1.034 | 1.033 | 4.214e-05 | 9342 | 5 of 5 | 5 of 5 |
 | fbpa_all | FBPA (2) | 0.1569 | 0.1596 | 11.5 | 1.053 | 1.037 | 3.290e-05 | 9623 | 5 of 5 | 5 of 5 |
 | fbpa_all | FOPSO-GWO (2) | 0.2311 | 0.2778 | 11.6 | 1.050 | 1.035 | 6.211e-05 | 9438 | 5 of 5 | 5 of 5 |
+| whole | PSO (4) | 1.047 | 2.274 | 17.8 | 1.329 | 1.113 | 2.747e-03 | 1.013e+04 | 4 of 5 | 4 of 5 |
+| whole | FBPA (7) | 1.03 | 1.772 | 19.3 | 1.422 | 1.102 | 1.357e-03 | 1.016e+04 | 4 of 5 | 4 of 5 |
+| whole | FOPSO-GWO (2) | 0.8385 | 1.692 | 18.6 | 1.287 | 1.100 | 1.308e-03 | 9951 | 4 of 5 | 5 of 5 |
 
 Convergence: `convergence.png` (best cost against cost evaluations).
 
