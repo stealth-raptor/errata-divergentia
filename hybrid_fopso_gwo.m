@@ -85,6 +85,9 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %                              coefficient grows from 0 to c3 while c1 and c2
 %                              shrink from c1 + c3/2 and c2 + c3/2, keeping
 %                              the sum of the three (0: off)
+%     explorers    0           fraction of the swarm (every 1/explorers-th
+%                              particle) that leaves the pack: their c1 and c2
+%                              take c3/2 each and their c3 is 0, i.e. plain PSO
 %     vmax         0.2         velocity clamp, as a fraction of each range
 %                              (the paper's |v| <= 1 is in raw units)
 %     Seeds        []          m x nvar rows in [0,1] to put into the swarm
@@ -143,6 +146,11 @@ else
     end
 end
 
+% explorers: particles spread over the swarm that keep PSO's pulls (no pack)
+m_exp = round(opts.explorers * N);
+ex = false(N, 1);
+if m_exp > 0, ex(round((1:m_exp) * N / m_exp)) = true; end
+
 t_start = tic;
 t_iter  = [];                        % durations of the iterations of this call
 for k = st.k + 1 : opts.MaxIter
@@ -169,10 +177,13 @@ for k = st.k + 1 : opts.MaxIter
     x_gwo = grey_wolf_target(st.X, st.pbest, st.pf, a_g);
     gbest = repmat(st.g, N, 1);
 
+    C1 = repmat(c1, N, 1);  C2 = repmat(c2, N, 1);  C3 = repmat(c3, N, 1);
+    C1(ex) = c1 + c3 / 2;   C2(ex) = c2 + c3 / 2;   C3(ex) = 0;
+
     V = memory ...
-        + c1      * rand(N, nvar) .* (st.pbest - st.X) ...
-        + c2      * rand(N, nvar) .* (gbest    - st.X) ...
-        + c3      * rand(N, nvar) .* (x_gwo    - st.X);
+        + C1 .* rand(N, nvar) .* (st.pbest - st.X) ...
+        + C2 .* rand(N, nvar) .* (gbest    - st.X) ...
+        + C3 .* rand(N, nvar) .* (x_gwo    - st.X);
     V = min(max(V, -opts.vmax), opts.vmax);
 
     % ---- position, kept inside the unit box ------------------------------
@@ -311,7 +322,7 @@ end
 function opts = set_defaults(opts, nvar)
 d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1.5, 'c2', 1.5, 'c3', 1, 'gwo_power', 2, ...
            'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0, 'alpha_hold', 0, ...
-           'c3_ramp', false, 'pack_ramp', 0, ...
+           'c3_ramp', false, 'pack_ramp', 0, 'explorers', 0, ...
            'vmax', 0.2, 'Seeds', zeros(0, nvar), 'SeedFraction', 0.3, ...
            'SeedJitter', 0.05, 'UseParallel', false, 'Checkpoint', '', ...
            'Resume', false, 'CheckpointTag', [], 'RandomSeed', [], 'Verbose', true);
