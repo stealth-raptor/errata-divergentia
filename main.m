@@ -352,18 +352,21 @@ T = results.FOPSO_GWO.tuning;
 if ~isfield(T, 'fitness') || ~isfield(T.fitness, 'whole') || isempty(T.fitness.whole), return; end
 W = T.fitness.whole;
 e = results.FOPSO_GWO.effort;
-out('\nFOPSO-GWO was tuned with peak-torque caps per joint: the largest peak any of the paper''s\n');
-out('three controllers needs on that joint, over all their identified gain sets (Nm):\n\n');
+out('\nFOPSO-GWO was tuned with caps per joint: for the torque, the largest peak any of the\n');
+out('paper''s three controllers needs on that joint over all their identified gain sets (Nm,\n');
+out('x %g); for the overshoot, the worst joint of the paper''s own FBPA-FOPID figures (%%):\n\n', ...
+    W.cap_scale);
 out('| | J1 | J2 | J3 | J4 | J5 | J6 |\n|---|---:|---:|---:|---:|---:|---:|\n');
 rows = {'Kick', W.cap.kick, e.step.kick; 'Step after kick', W.cap.step, e.step.peak; ...
-        'Sine', W.cap.sine, e.sine.peak};
+        'Sine', W.cap.sine, e.sine.peak; ...
+        'Overshoot', W.os_cap * ones(1, 6), results.FOPSO_GWO.step_metrics.overshoot(:)'};
 within = 0;
 for r = 1:size(rows, 1)
     out('| %s: cap | %s |\n', rows{r, 1}, join_fmt('%.4g', rows{r, 2}));
     out('| %s: FOPSO-GWO | %s |\n', rows{r, 1}, join_fmt('%.4g', rows{r, 3}));
     within = within + sum(rows{r, 3} <= rows{r, 2} * (1 + 1e-9));
 end
-out('\nFOPSO-GWO stays within %d of the 18 caps.\n', within);
+out('\nFOPSO-GWO stays within %d of the %d caps.\n', within, 6 * size(rows, 1));
 end
 
 % ------------------------------------------------------------------------
