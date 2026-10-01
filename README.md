@@ -1,4 +1,4 @@
-# Trajectory tracking of a 6-DOF robotic arm: PID and FOPID
+# Trajectory tracking of a 6-DOF robotic arm: PID, FOPID and FOPSO-GWO
 
 Octave reproduction of the simulation results in
 
@@ -8,26 +8,36 @@ The arm model, both controllers and both experiments of the paper are built from
 controller gains, which the paper does not publish, are **identified from the paper's own
 published curves**. These were read exactly from the vector graphics of the PDF.
 
-**Branch `audit`:** a line-by-line audit against the paper, the reasons the published graphs
-could not be matched before, and several inconsistencies found in the paper itself are in
-[`docs/audit_report.md`](docs/audit_report.md).
+On top of the reproduction, the FOPID is re-tuned with a **fractional-order PSO / grey-wolf
+hybrid (FOPSO-GWO)**, this work's counterpart of the paper's FBPA optimiser.
+
+This branch (`brand-new-day`) is the final code. It combines
+* the audited model and the PID / FOPID reproduction of branch `audit`: a line-by-line audit
+  against the paper, why the published graphs could not be matched before, and several
+  inconsistencies found in the paper itself, all in [`docs/audit_report.md`](docs/audit_report.md);
+* the FOPSO-GWO tuner of branch `claude/pensive-ramanujan-mmu564`, ported onto that model (only
+  the optimiser, the tuning driver and its fitness function).
 
 ## Run it
 
 ```
-octave --eval main                  # gains identified separately for each experiment -> results/
-octave --eval "main('shared')"      # one gain set per controller for both experiments -> results/shared_gains/
+octave --eval main                  # PID and FOPID (+ FOPSO-GWO once tuned) -> results/
+octave --eval "main('shared')"      # one PID / FOPID gain set for both experiments -> results/shared_gains/
+
+octave --eval "tune_fopid_hybrid(struct('PopSize', 8, 'MaxIter', 5, 'RandomSeed', 1))"   # short run, ~1 h
+octave --eval tune_fopid_hybrid     # the paper's budget, 30 particles x 100 iterations
 ```
 
-Each runs in a few minutes in Octave; no packages are needed, and they also run in MATLAB. They
-simulate both controllers through both experiments and compare them with the paper in three
+`main` runs in a few minutes in Octave; no packages are needed, and it also runs in MATLAB. It
+simulates the controllers through both experiments and compares them with the paper in three
 ways:
 1. the published Tables 3 and 4;
 2. the same metrics recomputed from the paper's own figures, which do not fully agree with its
    tables;
 3. every published curve, joint by joint.
 
-Outputs: `summary.md`, the figure set, and `simulation_results.mat`.
+Outputs: `summary.md`, the figure set, and `simulation_results.mat`. `results/` in this branch
+holds the output of the short tuning run above followed by `main`.
 
 **Gain sets.** The paper publishes no gains and does not say whether its step and sine
 experiments used the same ones. `controller_gains(controller, experiment)` holds three
@@ -54,10 +64,10 @@ octave --eval "addpath tools; check_twin('shared')"
 | `compare_step.png`, `compare_sine.png` | Figs 6–11, 13–18 | every published curve (thick black) overlaid on this work (thin colour), with the rms difference per joint |
 
 Colours are the paper's own: reference ("dir") red, PID green, FOPID blue. In the sine error
-panels and in Fig 19 the paper draws FOPID in red, which is kept. All signals are logged every
-0.01 s, as in the paper.
+panels and in Fig 19 the paper draws FOPID in red, which is kept. FOPSO-GWO, in place of the
+paper's FBPA-FOPID curve, is magenta. All signals are logged every 0.01 s, as in the paper.
 
-## Result
+## Result: PID and FOPID
 
 Every published curve of Figs 6–11 and 13–18 was read from the PDF, and the gains were
 identified so that the simulation matches them.
@@ -85,7 +95,7 @@ paper's own published curves. The paper's tables and figures do not fully agree 
 | Sine MSE | 2.27e-2 | 2.26e-2 | 1.54e-2 | 8.8e-3 | 8.8e-3 | 5.5e-3 |
 | Sine Σ\|τ\| | 3.74e4 | 2.32e4 | 1.05e4 | 2.57e4 | 3.74e4 | 1.03e4 |
 
-The same tables for the shared gains are in `results/shared_gains/summary.md`.
+`main('shared')` writes the same tables for the shared gains to `results/shared_gains/summary.md`.
 
 Why an exact match of every panel is not possible (details in the audit report):
 
@@ -100,6 +110,86 @@ Why an exact match of every panel is not possible (details in the audit report):
   identified gains are not unique; they show the curves are attainable, not that they are the
   authors' gains.
 
+## FOPSO-GWO: re-tuning the FOPID
+
+The paper improves its FOPID with FBPA, a fractional-order PSO fused with beetle antennae search.
+FOPSO-GWO is this work's counterpart: a **fractional-order PSO hybridised with the grey wolf
+optimiser**. It re-tunes all 30 FOPID parameters (Kp, Ki, Kd, λ, μ for each of the six joints),
+starting from the identified FOPID.
+
+### The algorithm (`hybrid_fopso_gwo.m`)
+
+It keeps the velocity equation of FBPA (paper Eq. 26) and replaces the beetle term with a
+grey-wolf term:
+
+```
+v(k+1) = (w-1+a) v(k) + a(1-a)/2 v(k-1) + a(1-a)(2-a)/6 v(k-2) + a(1-a)(2-a)(3-a)/24 v(k-3)   fractional memory, Eq. 25
+         + c1 r1 (pbest - x) + c2 r2 (gbest - x)                                               PSO
+         + c3 r3 (x_gwo - x)                                                                    GWO
+x_gwo  = mean over L in {alpha, beta, delta} of  L - A .* |C .* L - x|,   A = 2 a_g r - a_g,  C = 2 r'
+```
+
+* Alpha, beta and delta are the three best personal bests.
+* The inertia w falls linearly from 0.9 to 0.4, and the fractional order a follows Eq. 27
+  (0.9 → 0.4).
+* The GWO coefficient falls as a_g = 2(1 − k/K)², so the GWO term first explores around the three
+  leaders and then refines around them.
+
+Two settings differ from the paper's FBPA, both chosen on its own four 30-D test functions when
+the optimiser was developed: c1 = c2 = c3 = 1 instead of 2, and the quadratic a_g decay instead
+of GWO's usual linear one.
+
+### The tuning (`tune_fopid_hybrid.m`, `fopid_fitness.m`)
+
+* **Search space.** Kp, Ki and Kd are searched on a log10 scale, and λ and μ linearly. The
+  default bounds are log10 Kp ∈ [−2, 5], log10 Ki ∈ [−4, 5], log10 Kd ∈ [−1, 3] and λ, μ ∈ [0.05,
+  1.95]. They contain every gain of the identified FOPID, so the seed enters the swarm unclipped.
+* **Seeding.** The identified FOPID (`controller_gains('FOPID')`, one set for both experiments)
+  is one particle, and 30 % of the swarm starts as jittered copies of it. Because gbest never
+  gets worse, **the result is never worse than that FOPID** under the chosen cost.
+* **Cost.** The default `'composite'` cost combines the ITAE (paper Eq. 29) of both experiments
+  with the five paper metrics, each divided by the FOPID value, so the FOPID scores exactly 1 and
+  anything below 1 is better. A metric that ends up worse than FOPID is penalised extra.
+  `'torque'` also weights the torques; `'itae'` is the paper's own fitness (step ITAE only).
+* **Unstable candidates** stop as soon as any joint error exceeds 5 rad, and are ranked by how
+  long they held on.
+
+### Runtime in Octave
+
+One cost evaluation is two 5 s simulations, about 80 s in Octave (unstable candidates take a
+few seconds). The short run above, 8 particles × 5 iterations, takes about an hour. The paper's
+budget of 30 × 100 (≈ 3000 evaluations) takes days in serial Octave. MATLAB with the Parallel
+Computing Toolbox evaluates the swarm with `parfor` automatically. A checkpoint
+(`results/fopso_gwo_checkpoint.mat`) is saved after every iteration, so calling the tuner again
+with the same options resumes an interrupted run. When `results/fopso_gwo_gains.mat` exists,
+`main` adds FOPSO-GWO to the summary and the figures.
+
+### Result of the short run
+
+`tune_fopid_hybrid(struct('PopSize', 8, 'MaxIter', 5, 'RandomSeed', 1))`, 48 cost evaluations,
+49 min in Octave including `main`. Final cost **0.722** (FOPID = 1). The baseline is the
+identified FOPID with one gain set for both experiments, which seeded the swarm.
+
+| Metric | FOPID baseline | FOPSO-GWO | change | Paper FBPA-FOPID: table | Paper FBPA-FOPID: figures |
+|---|---:|---:|---:|---:|---:|
+| ITAE step | 2.871 | 1.820 | −36.6 % | n/a | 1.189 |
+| ITAE sine | 4.742 | 2.803 | −40.9 % | n/a | 3.560 |
+| Step overshoot | 35.9 % | 27.8 % | −22.4 % | 22.1 % | 21.2 % |
+| Step adjustment time (5 %) | 2.10 s | 1.83 s | −13.1 % | 1.43 s | 1.52 s |
+| Step peak time | 1.32 s | 1.30 s | −1.3 % | 1.09 s | 1.26 s |
+| Sine MSE | 1.050e-2 | 3.50e-3 | −66.7 % | 3.70e-3 | 3.68e-3 |
+| Sine Σ\|τ\| | 9961 | 9890 | −0.7 % | 2.32e4 | 2.57e4 |
+| Step peak torque | 1.725e5 | 1.327e5 | −23.1 % | n/a | n/a |
+
+* Even this short run improves every metric on the FOPID it started from.
+* Its sine MSE is already below the paper's FBPA-FOPID. Overshoot and settling time remain above
+  FBPA's.
+* The paper's torque values are numerical artefacts (audit 3.3–3.4) and are not comparable.
+
+A longer run (the paper's 30 × 100 budget) is expected to improve further. Full per-joint tables
+and the gains are in `results/summary.md`.
+
+
 ## Architecture
 
 ```
@@ -108,7 +198,7 @@ main.m                      runner: both controllers x both experiments, tables 
 ├── robot_params.m          arm parameters: Table 2 of the paper, UR DH, COM / gravity / friction options
 ├── robot_dynamics.m        M(q) qdd + C(q,qd) qd + G(q) + tau_f = tau  (Eq. 21), batched Newton-Euler
 │
-├── controller_gains.m      gains identified from the published curves
+├── controller_gains.m      gains identified from the published curves (+ FOPSO-GWO from results/)
 ├── fopid_controller.m      builds the six joint controllers
 ├── fopid_update.m          one control step: u = Kp e + Ki D^-lambda e + Kd D^mu e  (Eq. 9)
 ├── fractional_operator.m   Oustaloup approximation of s^alpha, discretised
@@ -117,6 +207,10 @@ main.m                      runner: both controllers x both experiments, tables 
 ├── performance_metrics.m   the metrics of the paper's Tables 3 and 4
 ├── paper_curves.m          the paper's published curves, in the same format as a simulation
 └── plot_paper_figures.m    the figure set, in the paper's own layout, plus overlays
+
+tune_fopid_hybrid.m         tunes the 30 FOPID parameters -> results/fopso_gwo_gains.mat
+├── hybrid_fopso_gwo.m      FO-PSO / grey-wolf hybrid optimiser
+└── fopid_fitness.m         cost of one gain set (ITAE + the paper's metrics)
 
 data/paper_curves/          published curves of Figs 6-19, per panel and series (from the PDF)
 data/paper_grid/            the same on the paper's 0.01 s grid

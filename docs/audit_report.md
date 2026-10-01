@@ -26,7 +26,8 @@ Branch: `audit`. Everything below can be re-run from the repository (commands in
    Joints 2, 4 and 6 follow the published curves to 0.02–0.05 rad (FOPID). The distinctive
    features of the coupled arm are reproduced: joint 4's negative dip after the step, joint 3's
    early jump, and joint 5's fast spike followed by a slow swing. Full tables are in
-   `results/summary.md` (separate gains), `results/shared_gains/summary.md` and the README.
+   `results/summary.md` (separate gains; `main('shared')` writes `results/shared_gains/summary.md`)
+   and the README.
 4. **Why an exact match is not possible for every panel: the paper contradicts itself.**
    The paper's joint-1 sine curves cannot come from the same plant and controllers as its
    joint-1 step curves. This is shown exactly, without any optimiser, from the angular-momentum
