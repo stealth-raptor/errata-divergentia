@@ -327,15 +327,14 @@ if ~isempty(prop)
     end
     out('\nOn the paper''s five metrics %s is better than the paper''s FBPA-FOPID table on\n', pname);
     lt = @(u, v) sum(u < v .* (1 - 5e-4));          % better, not equal to 0.05 %
-    out('%d of 5, than its figures on %d of 5, and than this work''s FBPA-FOPID on %d of 5', ...
-        lt(H(1:5), tab(1:5)), lt(H(1:5), fig(1:5)), lt(H(1:5), F(1:5)));
+    ties = sum(abs(H(1:5) ./ tab(1:5) - 1) <= 5e-4);
+    tie_text = '';
+    if ties > 0, tie_text = sprintf(' (and equal on %d)', ties); end
+    out('%d of 5%s, than its figures on %d of 5, and than this work''s FBPA-FOPID on %d of 5', ...
+        lt(H(1:5), tab(1:5)), tie_text, lt(H(1:5), fig(1:5)), lt(H(1:5), F(1:5)));
     if pso_
         out(';\nthan PSO-FOPID, tuned with the same cost, on %d of 5 and both ITAEs %d of 2', ...
             lt(H(1:5), Q(1:5)), lt(H(6:7), Q(6:7)));
-    end
-    ties = sum(abs(H(1:5) ./ tab(1:5) - 1) <= 5e-4);
-    if ties > 0
-        out(' (equal to the table on %d)', ties);
     end
     out('.\nNegative changes are improvements. The adjustment and peak times are measured from t = 0,\n');
     out('as in the paper, so every one is at least 1 s; the last column compares them after the\n');

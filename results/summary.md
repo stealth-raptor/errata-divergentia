@@ -60,8 +60,8 @@ Fig. 19 and its torque curves are numerical artefacts (Sect. 7; docs/audit_repor
 | ITAE sine | n/a | 3.56 | 2.44 | 2.274 | 1.719 | **1.769** | n/a | -27.5 % | -22.2 % |  |
 
 On the paper's five metrics FOPSO-GWO-CC is better than the paper's FBPA-FOPID table on
-4 of 5, than its figures on 5 of 5, and than this work's FBPA-FOPID on 5 of 5;
-than PSO-FOPID, tuned with the same cost, on 5 of 5 and both ITAEs 2 of 2 (equal to the table on 1).
+4 of 5 (and equal on 1), than its figures on 5 of 5, and than this work's FBPA-FOPID on 5 of 5;
+than PSO-FOPID, tuned with the same cost, on 5 of 5 and both ITAEs 2 of 2.
 Negative changes are improvements. The adjustment and peak times are measured from t = 0,
 as in the paper, so every one is at least 1 s; the last column compares them after the
 step at t = 1 s, as the cost does. What the torque costs is in Sect. 3.
