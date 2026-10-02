@@ -101,6 +101,8 @@ function tuned = tune_fopid_hybrid(opts)
 %                  FOPID_FITNESS); default true when SIMULATE_MEX is built,
 %                  since it doubles the cost of a candidate
 %     CapScale     'whole' only: multiplies the peak-torque caps (default 1)
+%     EffortWeights 'whole' only: weights of its four effort terms (sum |tau|
+%                  step, sine; total variation step, sine); default [1 1 1 1]
 %     Regret       extra weight on metrics worse than the reference (default
 %                  1, or 2 with Target = 'FBPA' or 'FBPA-all')
 %     Baseline     CONTROLLER_GAINS name the cost is normalised by (it
@@ -147,6 +149,7 @@ if strcmpi(opts.Fitness, 'whole')
     opts.Target = 'FBPA';
     fprintf('Measuring the torque of the paper''s controllers (caps and references) ...\n');
     fit.whole = whole_references(P, opts.CapScale);
+    if ~isempty(opts.EffortWeights), fit.whole.weights = opts.EffortWeights; end
 end
 switch upper(opts.Target)
     case 'BASELINE'
@@ -203,7 +206,8 @@ for i = 1:numel(opts.Start)
 end
 
 opt_opts = rmfield(opts, {'Optimizer', 'Fitness', 'Weights', 'Regret', 'Baseline', 'Start', ...
-                          'Bounds', 'OutFile', 'Target', 'Robust', 'CapScale'});
+                          'Bounds', 'OutFile', 'Target', 'Robust', 'CapScale', ...
+                          'EffortWeights'});
 opt_opts.Seeds = min(max(z_seed, 0), 1);
 % a checkpoint is only resumed if it was written for the same cost function
 opt_opts.CheckpointTag = {opts.Optimizer, fit.weights, fit.regret, fit.time_offset, fit.robust, ...
@@ -366,7 +370,7 @@ switch upper(strrep(opts.Optimizer, '_', '-'))
 end
 stem = lower(strrep(opts.Optimizer, '-', '_'));
 d = struct('PopSize', 30, 'MaxIter', 100, 'Fitness', fitness, 'Weights', [], ...
-           'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, 'Target', 'baseline', 'CapScale', 1, ...
+           'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, 'Target', 'baseline', 'CapScale', 1, 'EffortWeights', [], ...
            'Robust', exist('simulate_mex') == 3, ...                       %#ok<EXIST>
            'Bounds', struct('lo', [-2 -4 -1 0.05 0.05], 'hi', [5 5 3 1.95 1.95]), ...
            'UseParallel', has_pct, ...
