@@ -87,6 +87,17 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %                              coefficient grows from 0 to c3 while c1 and c2
 %                              shrink from c1 + c3/2 and c2 + c3/2, keeping
 %                              the sum of the three (0: off)
+%     CrossFraction 0          share of the swarm that, each iteration, does
+%                              not move but tries a joint-block crossover
+%                              instead (a genetic-algorithm operator): its
+%                              personal best with each joint's five gains
+%                              taken, with probability CrossCR, from one of
+%                              the CrossDonors best personal bests.  The cost
+%                              is nearly a sum over joints, so good joints of
+%                              different controllers combine (0: off)
+%     CrossCR      0.5
+%     CrossDonors  5
+%     CrossStart   0           ... from this fraction of the run on
 %     StopIter     Inf         stop after this iteration, the schedules still
 %                              running to MaxIter (for HYBRID_FOPSO_CMA)
 %     explorers    0           fraction of the swarm (every 1/explorers-th
@@ -195,6 +206,11 @@ for k = st.k + 1 : min(opts.MaxIter, opts.StopIter)
     out = X < 0 | X > 1;
     X = min(max(X, 0), 1);
     V(out) = 0;                                  % stop at the wall
+
+    % ---- joint-block crossover (GA): recombine the elite's controllers ----
+    if opts.CrossFraction > 0 && k >= opts.CrossStart * opts.MaxIter
+        [X, V] = block_crossover(X, V, st.pbest, st.pf, opts);
+    end
 
     st.V3 = st.V2;  st.V2 = st.V1;  st.V1 = st.V;  st.V = V;
     st.X  = X;
@@ -306,6 +322,35 @@ x_gwo = x_gwo / 3;
 end
 
 % ------------------------------------------------------------------------
+function [X, V] = block_crossover(X, V, pbest, pf, opts)
+%BLOCK_CROSSOVER  Replace some particles' moves by joint-block crossovers.
+%   The parameter vector is [Kp Ki Kd lambda mu], six joints each, so the
+%   block of joint j is j + nj * (0:4).  A chosen particle's new position is
+%   its personal best with every block taken, with probability CrossCR, from
+%   a donor drawn from the CrossDonors best personal bests (at least one
+%   block from the donor and one kept).  Its velocity restarts from zero.
+[N, n] = size(X);
+nj = n / 5;
+m = round(opts.CrossFraction * N);
+[~, order] = sort(pf);
+donors = order(1:min(opts.CrossDonors, N));
+for i = randperm(N, m)
+    d = donors(randi(numel(donors)));
+    if d == i, d = donors(mod(find(donors == i), numel(donors)) + 1); end
+    mask = rand(1, nj) < opts.CrossCR;
+    if ~any(mask), mask(randi(nj)) = true; end
+    if all(mask), mask(randi(nj)) = false; end
+    trial = pbest(i, :);
+    for j = find(mask)
+        idx = j + nj * (0:4);
+        trial(idx) = pbest(d, idx);
+    end
+    X(i, :) = trial;
+    V(i, :) = 0;
+end
+end
+
+% ------------------------------------------------------------------------
 function F = evaluate(cost, X, use_parallel)
 %EVALUATE  Cost of every row of X; non-finite costs are treated as very bad.
 N = size(X, 1);
@@ -327,6 +372,7 @@ function opts = set_defaults(opts, nvar)
 d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1.5, 'c2', 1.5, 'c3', 1, 'gwo_power', 2, ...
            'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0, 'alpha_hold', 0, ...
            'c3_ramp', false, 'pack_ramp', 0, 'explorers', 0, 'StopIter', Inf, ...
+           'CrossFraction', 0, 'CrossCR', 0.5, 'CrossDonors', 5, 'CrossStart', 0, ...
            'vmax', 0.2, 'Seeds', zeros(0, nvar), 'SeedFraction', 0.3, ...
            'SeedJitter', 0.05, 'UseParallel', false, 'Checkpoint', '', ...
            'Resume', false, 'CheckpointTag', [], 'RandomSeed', [], 'Verbose', true);

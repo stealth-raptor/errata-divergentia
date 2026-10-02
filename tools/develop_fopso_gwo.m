@@ -34,6 +34,10 @@ function develop_fopso_gwo(seeds, candidates, cost)
 %     H7   H1 with the CMA-ES by joint blocks (Local 'block')
 %     H8   H3 with sep-CMA-ES (Diagonal)
 %     H9   H8, the run after the hunts by joint blocks
+%     X1   L with joint-block crossover (a GA operator) for 20 % of the swarm
+%          each iteration (HYBRID_FOPSO_GWO, CrossFraction)
+%     X2   X1 with 33 %
+%     X3   X1 from 30 % of the run on
 %     PSO  plain PSO, the reference
 %
 %   First all of them under cost 'fbpa', then the best of those and three
@@ -70,6 +74,9 @@ all_candidates = { ...
     'H7',  'FOPSO-GWO-CMA', struct('Local', 'block')
     'H8',  'FOPSO-GWO-CMA', struct('Leaders', 3, 'Diagonal', true)
     'H9',  'FOPSO-GWO-CMA', struct('Leaders', 3, 'Diagonal', true, 'Local', 'block')
+    'X1',  'FOPSO-GWO', struct(L{:}, 'CrossFraction', 0.2)
+    'X2',  'FOPSO-GWO', struct(L{:}, 'CrossFraction', 0.33)
+    'X3',  'FOPSO-GWO', struct(L{:}, 'CrossFraction', 0.2, 'CrossStart', 0.3)
     'PSO', 'PSO',       struct()};
 if nargin < 1 || isempty(seeds),      seeds = 101:104; end
 if nargin < 2 || isempty(candidates), candidates = all_candidates(:, 1)'; end
