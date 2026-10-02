@@ -74,6 +74,8 @@ if ~isempty(blk_F), history(end+1) = f_best; mean_history(end+1) = mean(blk_F); 
 info.cost = f_best;
 info.history = history(2:end);            % the first block is the "initial swarm"
 info.mean_history = mean_history(2:end);
+info.block_history = history;             % every block, for a hybrid that continues a run
+info.block_mean = mean_history;
 info.evaluations = evals;
 info.options = opts;
 info.mean = st.mean;  info.sigma = st.sigma;  info.C = st.C;
