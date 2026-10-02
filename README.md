@@ -213,6 +213,9 @@ fixed before the candidates it chose between had run. Three complements were tri
 
 ## FOPSO-GWO: a whole controller
 
+FOPSO-GWO without the coevolution stage, the previous result of this work; FOPSO-GWO-CC above
+uses the same cost and improves on it in four of the five metrics (torque is equal).
+
 FOPSO-GWO re-tunes the FOPID as a whole controller (`Fitness = 'whole'`): better tracking than
 the paper's FBPA-FOPID, **within the torque the paper's own controllers use**, joint by joint,
 and without one joint hiding behind the averages. PSO-FOPID is the same tuning done by plain
