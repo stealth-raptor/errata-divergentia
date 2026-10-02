@@ -26,7 +26,7 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 %                            are all worse than the point itself
 %     Lambda         []      CMA-ES offspring per generation ([]: 4 + 3 ln n)
 %     ShapeFromElite true    start covariance from the elite (false: identity)
-%     Leaders        1       > 1: first a short CMA-ES hunt from each of the
+%     Leaders        3       > 1: first a short CMA-ES hunt from each of the
 %                            best personal bests that lie LeaderGap apart
 %                            (the pack's alpha, beta, delta), sharing
 %                            LeaderShare of the CMA-ES budget; the rest goes
@@ -34,7 +34,7 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 %     LeaderGap      0.05
 %     FullSchedule   false   true: the swarm runs the schedules of the full
 %                            MaxIter and stops at SwarmFraction, unconverged
-%     Diagonal       false   true: the CMA-ES runs are sep-CMA-ES (CMAES)
+%     Diagonal       true    the CMA-ES runs are sep-CMA-ES (CMAES)
 %     Local          'cma'   'block': instead of CMA-ES in all 30 dimensions, a
 %                            sweep over the joints, each a short CMA-ES in that
 %                            joint's 5 gains (BlockGens generations per visit;
@@ -53,8 +53,8 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 if nargin < 3, opts = struct(); end
 d = struct('PopSize', 30, 'MaxIter', 100, 'SwarmFraction', 0.6, 'Elite', 10, ...
            'SigmaMin', 0.003, 'SigmaMax', 0.01, 'Lambda', [], 'Verbose', true, ...
-           'RandomSeed', [], 'Leaders', 1, 'LeaderGap', 0.05, 'LeaderShare', 0.3, ...
-           'ShapeFromElite', true, 'FullSchedule', false, 'Diagonal', false, ...
+           'RandomSeed', [], 'Leaders', 3, 'LeaderGap', 0.05, 'LeaderShare', 0.3, ...
+           'ShapeFromElite', true, 'FullSchedule', false, 'Diagonal', true, ...
            'Local', 'cma', 'BlockGens', 4);
 f = fieldnames(d);
 for i = 1:numel(f)
