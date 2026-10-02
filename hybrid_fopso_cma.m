@@ -21,8 +21,9 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 %   Options (besides those of HYBRID_FOPSO_GWO, passed on to it):
 %     SwarmFraction  0.6     share of the iterations given to FOPSO-GWO
 %     Elite          10      personal bests that shape the CMA-ES start
-%     SigmaMin       0.005   bounds on the CMA-ES start step (unit box)
-%     SigmaMax       0.05
+%     SigmaMin       0.003   bounds on the CMA-ES start step (unit box): good
+%     SigmaMax       0.01    controllers sit in narrow valleys, steps of 0.05
+%                            are all worse than the point itself
 %     Lambda         []      CMA-ES offspring per generation ([]: 4 + 3 ln n)
 %
 %   info: cost, history (best cost per block of PopSize evaluations, as the
@@ -33,7 +34,7 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 
 if nargin < 3, opts = struct(); end
 d = struct('PopSize', 30, 'MaxIter', 100, 'SwarmFraction', 0.6, 'Elite', 10, ...
-           'SigmaMin', 0.005, 'SigmaMax', 0.05, 'Lambda', [], 'Verbose', true, ...
+           'SigmaMin', 0.003, 'SigmaMax', 0.01, 'Lambda', [], 'Verbose', true, ...
            'RandomSeed', []);
 f = fieldnames(d);
 for i = 1:numel(f)
