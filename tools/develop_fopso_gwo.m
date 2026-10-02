@@ -23,6 +23,11 @@ function develop_fopso_gwo(seeds, candidates, cost)
 %     R    L, starting as PSO (pack_ramp 1: the grey-wolf share grows over the run)
 %     R2   L, starting as PSO, grey-wolf share complete at mid-run (pack_ramp 0.5)
 %     S    L with half the swarm leaving the pack and pulled as in PSO (explorers 0.5)
+%     H1   FOPSO-GWO-CMA (HYBRID_FOPSO_CMA): L for 60 % of the iterations,
+%          then CMA-ES from the best point, shaped by the elite
+%     H1I  H1 with an identity start covariance
+%     H3   H1 with a short CMA-ES hunt from each of three leaders first
+%     H4   H1 with the swarm for 40 % of the iterations
 %     PSO  plain PSO, the reference
 %
 %   First all of them under cost 'fbpa', then the best of those and three
@@ -50,6 +55,10 @@ all_candidates = { ...
     'R',   'FOPSO-GWO', struct(L{:}, 'pack_ramp', 1)
     'R2',  'FOPSO-GWO', struct(L{:}, 'pack_ramp', 0.5)
     'S',   'FOPSO-GWO', struct(L{:}, 'explorers', 0.5)
+    'H1',  'FOPSO-GWO-CMA', struct()
+    'H1I', 'FOPSO-GWO-CMA', struct('ShapeFromElite', false)
+    'H3',  'FOPSO-GWO-CMA', struct('Leaders', 3)
+    'H4',  'FOPSO-GWO-CMA', struct('SwarmFraction', 0.4)
     'PSO', 'PSO',       struct()};
 if nargin < 1 || isempty(seeds),      seeds = 101:104; end
 if nargin < 2 || isempty(candidates), candidates = all_candidates(:, 1)'; end

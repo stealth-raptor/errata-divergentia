@@ -40,6 +40,7 @@ evals = 0;
 block = opts.PopSize;                     % history is kept per block of evaluations
 history = [];  mean_history = [];
 blk_F = [];
+F_all = zeros(opts.MaxEvals, 1);
 t0 = tic;
 while evals < opts.MaxEvals
     lam = min(st.lambda, opts.MaxEvals - evals);
@@ -49,6 +50,7 @@ while evals < opts.MaxEvals
         F(i) = cost(X(i, :));
     end
     F(~isfinite(F)) = 1e12;
+    F_all(evals + (1:lam)) = F;
     evals = evals + lam;
     [fm, im] = min(F);
     if fm < f_best, f_best = fm; z_best = X(im, :); end
@@ -72,10 +74,12 @@ while evals < opts.MaxEvals
 end
 if ~isempty(blk_F), history(end+1) = f_best; mean_history(end+1) = mean(blk_F); end
 info.cost = f_best;
+info.best_z = z_best;
 info.history = history(2:end);            % the first block is the "initial swarm"
 info.mean_history = mean_history(2:end);
 info.block_history = history;             % every block, for a hybrid that continues a run
 info.block_mean = mean_history;
+info.F_all = F_all(1:evals);              % every cost, in the order evaluated
 info.evaluations = evals;
 info.options = opts;
 info.mean = st.mean;  info.sigma = st.sigma;  info.C = st.C;
