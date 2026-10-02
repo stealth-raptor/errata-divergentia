@@ -1,7 +1,7 @@
 function check_mex()
 %CHECK_MEX  Verify that SIMULATE_MEX and the .m loop of SIMULATE_CLOSED_LOOP agree.
 %
-%   Runs every gain set of CONTROLLER_GAINS (and FOPSO-GWO if tuned) through
+%   Runs every gain set of CONTROLLER_GAINS (and the tuned ones present) through
 %   both experiments with use_mex = true and false, plus an unstable
 %   candidate with abort_err = 5 to check the early-abort path, and reports
 %   the largest differences and the speed-up.  Run from the repository root
@@ -15,7 +15,7 @@ P = robot_params();
 sets = {'PID', 'shared'; 'PID', 'step'; 'PID', 'sine'; ...
         'FOPID', 'shared'; 'FOPID', 'step'; 'FOPID', 'sine'; ...
         'FBPA', 'shared'; 'FBPA', 'step'; 'FBPA', 'sine'};
-for c = {'PSO', 'FOPSO_GWO'}
+for c = {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC'}
     if exist(fullfile('results', [lower(c{1}) '_gains.mat']), 'file')
         sets(end+1, :) = {c{1}, 'shared'}; %#ok<AGROW>
     end
