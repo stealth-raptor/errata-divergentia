@@ -30,6 +30,7 @@ function develop_fopso_gwo(seeds, candidates, cost)
 %     H4   H1 with the swarm for 40 % of the iterations
 %     H5   the swarm cut short before it converges (FullSchedule), hunts
 %          from three leaders, identity start covariance
+%     H6   H3 with the swarm for 40 % of the iterations
 %     PSO  plain PSO, the reference
 %
 %   First all of them under cost 'fbpa', then the best of those and three
@@ -62,6 +63,7 @@ all_candidates = { ...
     'H3',  'FOPSO-GWO-CMA', struct('Leaders', 3)
     'H4',  'FOPSO-GWO-CMA', struct('SwarmFraction', 0.4)
     'H5',  'FOPSO-GWO-CMA', struct('Leaders', 3, 'FullSchedule', true, 'ShapeFromElite', false)
+    'H6',  'FOPSO-GWO-CMA', struct('Leaders', 3, 'SwarmFraction', 0.4)
     'PSO', 'PSO',       struct()};
 if nargin < 1 || isempty(seeds),      seeds = 101:104; end
 if nargin < 2 || isempty(candidates), candidates = all_candidates(:, 1)'; end
