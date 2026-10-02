@@ -38,7 +38,9 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 %     Local          'cma'   'block': instead of CMA-ES in all 30 dimensions, a
 %                            sweep over the joints, each a short CMA-ES in that
 %                            joint's 5 gains (BlockGens generations per visit;
-%                            step and shape kept from one sweep to the next)
+%                            step and shape kept from one sweep to the next);
+%                            with Leaders > 1 it replaces the run that follows
+%                            the hunts
 %     BlockGens      4
 %     LeaderShare    0.3
 %
@@ -93,7 +95,7 @@ for k = 2:numel(order)
     end
 end
 runs = {};  F_all = [];
-if strcmpi(opts.Local, 'block')
+if strcmpi(opts.Local, 'block') && numel(lead) == 1
     if opts.Verbose
         fprintf('Joint-block CMA-ES from the swarm''s best (cost %.6g), %d evaluations\n', s1.cost, rem);
     end
@@ -130,6 +132,9 @@ end
 if ~strcmpi(opts.Local, 'block')
     [~, s] = cmaes(cost, nvar, o2);
     runs{end+1} = s;  F_all = [F_all; s.F_all];
+elseif numel(lead) > 1                         % the hunts chose the basin; refine it by joint
+    [zb, Jb, Fb] = block_search(cost, z_lead, best_J, rem - numel(F_all), nvar, opts);
+    runs{end+1} = struct('cost', Jb, 'best_z', zb);  F_all = [F_all; Fb];
 end
 
 % ---- the best point of all, and one history ------------------------------
