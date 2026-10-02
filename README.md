@@ -280,17 +280,17 @@ controller any FOPSO-GWO run has found. It is not the one shown above: the contr
 are each the best of the eight runs of their optimiser's final settings, and picking from both
 FOPSO-GWO settings, sixteen runs against PSO's eight, would not be a fair comparison.
 
-### PSO, FBPA and FOPSO-GWO as optimisers
+### PSO, FBPA, FOPSO-GWO and FOPSO-GWO-CC as optimisers
 
 The comparison above is between controllers, each tuned with its own cost. To compare the
-optimisers themselves, `tools/compare_optimizers.m` runs plain PSO (`pso.m`), FBPA (`fbpa.m`)
-and FOPSO-GWO under the same four costs. Everything but the algorithm is the same: 30 particles
-× 100 iterations, the search space, the seed controller (the identified FOPID), the initial
-swarm for each random seed (the three share the initialisation code and its random draws), the
-cost function and its checks. PSO uses its standard coefficients, FBPA the paper's, FOPSO-GWO
-its final settings (below); PSO and FOPSO-GWO limit the velocity to 0.2 of each range. PSO and
-FOPSO-GWO evaluate the cost once per particle and iteration (3030 evaluations per run), FBPA
-three times (9030).
+optimisers themselves, `tools/compare_optimizers.m` runs plain PSO (`pso.m`), FBPA (`fbpa.m`),
+FOPSO-GWO and FOPSO-GWO-CC under the same four costs. Everything but the algorithm is the same:
+30 particles, the search space, the seed controller (the identified FOPID), the initial swarm
+for each random seed (they share the initialisation code and its random draws), the cost
+function and its checks. PSO uses its standard coefficients, FBPA the paper's, FOPSO-GWO and
+FOPSO-GWO-CC their final settings (below and above); the swarms limit the velocity to 0.2 of
+each range. PSO and the FOPSO-GWO variants evaluate the cost 3030 times per run, FBPA three
+times as often (9030).
 
 The costs are the paper's fitness (`paper`: step ITAE, Eq. 29), tracking against the paper's
 FBPA-FOPID (`fbpa`), the same against the better of it and the best FBPA run (`fbpa_all`), and
@@ -302,37 +302,47 @@ costs):
 |---|---|---:|---:|---:|---:|---:|
 | paper | PSO | **0.035** | **0.089** | **0.088** | 0.144 | **0.088** |
 | | FBPA | 0.095 | 0.140 | 0.134 | 0.159 | 0.279 |
-| | FOPSO-GWO | 0.087 | 0.122 | 0.116 | **0.135** | 0.116 |
+| | FOPSO-GWO | 0.087 | 0.122 | 0.116 | 0.135 | 0.116 |
+| | FOPSO-GWO-CC | 0.040 | 0.103 | 0.093 | **0.130** | 0.093 |
 | fbpa | PSO | 0.341 | 0.379 | 0.388 | 0.444 | 0.388 |
 | | FBPA | 0.386 | 0.512 | 0.486 | 0.534 | 1.67 |
-| | FOPSO-GWO | **0.331** | **0.348** | **0.352** | **0.384** | **0.352** |
-| fbpa_all | PSO | **0.389** | **0.643** | **0.785** | **1.396** | **0.785** |
+| | FOPSO-GWO | 0.331 | 0.348 | 0.352 | 0.384 | 0.352 |
+| | FOPSO-GWO-CC | **0.172** | **0.266** | **0.257** | **0.293** | **0.257** |
+| fbpa_all | PSO | 0.389 | 0.643 | 0.785 | 1.396 | 0.785 |
 | | FBPA | 0.449 | 1.072 | 1.224 | 2.302 | 10.1 |
 | | FOPSO-GWO | 0.518 | 1.371 | 1.193 | 1.472 | 1.193 |
+| | FOPSO-GWO-CC | **0.326** | **0.477** | **0.615** | **1.040** | **0.615** |
 | whole | PSO | 1.378 | 2.223 | 2.181 | 2.983 | 2.181 |
-| | FBPA | **1.186** | 2.412 | 2.462 | 4.418 | 5.47 |
-| | FOPSO-GWO | 1.416 | **1.718** | **1.764** | **2.160** | **1.764** |
+| | FBPA | 1.186 | 2.412 | 2.462 | 4.418 | 5.47 |
+| | FOPSO-GWO | 1.416 | 1.718 | 1.764 | 2.160 | 1.764 |
+| | FOPSO-GWO-CMA | 1.610 | 1.881 | 2.106 | 3.646 | 2.106 |
+| | FOPSO-GWO-CC | **0.734** | **1.286** | **1.162** | **1.554** | **1.162** |
 
-FOPSO-GWO head to head, the random seeds on which it ends lower (same cost and seed):
+Head to head, the random seeds on which an optimiser ends lower (same cost and seed):
 
-| Cost | against PSO | against FBPA |
-|---|---:|---:|
-| paper | 1 of 8 | 3 of 4 |
-| fbpa | **6 of 8** | 4 of 4 |
-| fbpa_all | 2 of 8 | 1 of 4 |
-| whole | **7 of 8** | 6 of 8 |
+| Cost | FOPSO-GWO-CC against PSO | against FBPA | against FOPSO-GWO | FOPSO-GWO against PSO |
+|---|---:|---:|---:|---:|
+| paper | 4 of 8 | 3 of 4 | 5 of 8 | 1 of 8 |
+| fbpa | **8 of 8** | 4 of 4 | 8 of 8 | 6 of 8 |
+| fbpa_all | **6 of 8** | 4 of 4 | 8 of 8 | 2 of 8 |
+| whole | **8 of 8** | 8 of 8 | 8 of 8 | 7 of 8 |
 
-* **FOPSO-GWO beats PSO on two of the four costs and loses on the other two.** It is better
-  under `fbpa` (6 of 8 seeds, mean −9 %) and under `whole`, the cost of the final controller
-  (7 of 8 seeds, mean −19 %, the lowest median, mean and worst run of the three optimisers).
-  PSO is better under the paper's own fitness (7 of 8 seeds) and under `fbpa_all` (6 of 8).
-  With eight seeds, 7 of 8 is significant at about 4 % (one-sided sign test) and 6 of 8 is not
-  (14 %).
-* **FOPSO-GWO is consistent rather than far-reaching.** Under `whole` its worst run (2.16) is
-  better than PSO's median, but PSO's and FBPA's best runs (1.378, 1.186) beat its best
-  (1.416). Only under `fbpa` is the best single run its own.
-* **Against FBPA**, FOPSO-GWO has the lower mean under all four costs, with a third of FBPA's
-  evaluations, and the lower final cost on 14 of 20 seed pairs.
+* **FOPSO-GWO-CC beats PSO under three of the four costs**: `whole` (8 of 8 seeds, mean
+  −47 %), `fbpa` (8 of 8, −34 %) and `fbpa_all` (6 of 8, −22 %), in all with the lowest best,
+  median, mean and worst run. Under the paper's own fitness it is level with PSO (4 of 8 seeds,
+  mean 5 % higher, best run 0.040 against PSO's 0.035); FOPSO-GWO lost there on 7 of 8. In all,
+  it ends lower than PSO on 26 of the 32 seed and cost pairs, than FOPSO-GWO on 29 and than FBPA
+  on 19 of 20. Winning 8 of 8 seeds has a one-sided sign-test p of 0.004.
+* **The two costs FOPSO-GWO lost are the ones with joint basins, and searching each joint on
+  its own reaches them.** Under `paper` the best runs have joint 3's Kp at the top of its range,
+  its fast basin: FOPSO-GWO-CC's three best runs (0.040, 0.058, 0.062) do, as do PSO's two best,
+  and none of FOPSO-GWO's. Under `fbpa_all` a run scores well only with a peak time below
+  1.048 s: 5 of FOPSO-GWO-CC's 8 runs get there (PSO 6, FOPSO-GWO 2), and there its costs are
+  lower than PSO's.
+* **FOPSO-GWO-CMA**, the CMA-ES complement (whole cost only), is worse than plain FOPSO-GWO:
+  the refinement does not pay for the shorter swarm (above).
+* **Against FBPA**, every FOPSO-GWO variant has the lower mean under every cost, with a third
+  of FBPA's evaluations.
 
 #### Why plain PSO beat the first FOPSO-GWO, and what the final settings change
 
