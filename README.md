@@ -183,7 +183,8 @@ others):
   FOPSO-GWO-CC still beats PSO on all 8 seeds (mean cost 0.954 against 2.391), and PSO's best
   run is the same PSO-FOPID controller; FOPSO-GWO-CC's best beats it by 38 % in overshoot, 54 %
   and 25 % in adjustment and peak time after the step, 33 % in MSE and still only 7 % in torque.
-  The mean torque of the eight runs falls by 4 % for PSO and FOPSO-GWO-CC alike.
+  The mean torque of the eight runs does not fall at all (PSO 9934 to 9966 Nm, FOPSO-GWO-CC
+  9509 to 9554 Nm): within the caps and this tracking, there is little torque left to save.
 
 **As an optimiser**, on the whole-controller cost, held-out seeds 1–8:
 
