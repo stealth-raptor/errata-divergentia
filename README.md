@@ -171,11 +171,19 @@ others):
 * **Within the paper's torque on every joint:** all 24 caps are met, none is reached (the
   closest, joint 1 after the kick, at 87 %), and its derivative kick is 44 % below PSO-FOPID's
   (summary.md, Sect. 3).
-* **Torque is the smallest margin** (−5 %, from −1 % to −8 % over the eight runs). Following the
-  sine perfectly takes 7395 Nm (inverse dynamics); every controller spends 2400–2800 Nm more in
-  the first 0.5 s, catching up with a reference that starts at 1.5 rad/s while the arm is at
-  rest, and that catch-up trades directly against MSE. The whole-controller cost weighs the
-  torque as one of four effort terms, so the optimisers spend their gains on tracking.
+* **Torque is the smallest margin** (−5 %, from −1 % to −8 % over the eight runs), and it is
+  close to what the physics allows. Following the sine perfectly takes 7395 Nm (inverse
+  dynamics): 699 Nm in the first 0.5 s and 6696 Nm after. PSO-FOPID spends 2368 + 7767 Nm,
+  FOPSO-GWO-CC 2362 + 7247 Nm: it halves PSO's excess in steady tracking (551 against 1071 Nm
+  above the floor), but the catch-up of the first 0.5 s, with a reference that starts at
+  1.5 rad/s while the arm is at rest, costs every fast-tracking controller about the same, and
+  less of it means a larger error.
+* **Weighting the torque more does not change this.** With the sine torque three times as heavy
+  in the cost (`tools/compare_weighted.m`, both optimisers, seeds 1–8, `results/torque_runs/`),
+  FOPSO-GWO-CC still beats PSO on all 8 seeds (mean cost 0.954 against 2.391), and PSO's best
+  run is the same PSO-FOPID controller; FOPSO-GWO-CC's best beats it by 38 % in overshoot, 54 %
+  and 25 % in adjustment and peak time after the step, 33 % in MSE and still only 7 % in torque.
+  The mean torque of the eight runs falls by 4 % for PSO and FOPSO-GWO-CC alike.
 
 **As an optimiser**, on the whole-controller cost, held-out seeds 1–8:
 
@@ -645,6 +653,7 @@ tune_fopid_hybrid.m         tunes the 30 FOPID parameters -> results/<optimizer>
 tools/compare_optimizers.m  PSO, FBPA, FOPSO-GWO x 4 costs x 8 seeds -> results/optimizer_runs/
 tools/ablate_optimizers.m   the same with one setting changed (why PSO won) -> results/ablation_runs/
 tools/develop_fopso_gwo.m   the candidate FOPSO-GWO and hybrid settings on development seeds -> results/dev_runs/
+tools/compare_weighted.m    PSO and FOPSO-GWO-CC with the torque weighted more -> results/torque_runs/
 
 simulate_mex.c              the closed-loop simulation in C, used automatically once built
 build_mex.m                 compiles it (mkoctfile in Octave, mex in MATLAB)
