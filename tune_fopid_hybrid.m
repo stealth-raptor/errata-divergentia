@@ -212,9 +212,11 @@ opt_opts.CheckpointTag = {opts.Optimizer, fit.weights, fit.regret, fit.time_offs
 fprintf('%s: %d particles x %d iterations, 30 parameters, fitness ''%s'', start %s\n', ...
         opts.Optimizer, opt_opts.PopSize, opt_opts.MaxIter, opts.Fitness, strjoin(opts.Start, ' + '));
 switch opts.Optimizer
-    case 'FBPA', [z_best, info] = fbpa(cost, B.n, opt_opts);
-    case 'PSO',  [z_best, info] = pso(cost, B.n, opt_opts);
-    otherwise,   [z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
+    case 'FBPA',          [z_best, info] = fbpa(cost, B.n, opt_opts);
+    case 'PSO',           [z_best, info] = pso(cost, B.n, opt_opts);
+    case 'CMA-ES',        [z_best, info] = cmaes(cost, B.n, opt_opts);
+    case 'FOPSO-GWO-CMA', [z_best, info] = hybrid_fopso_cma(cost, B.n, opt_opts);
+    otherwise,            [z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
 end
 
 gains = decode(z_best, B);
@@ -358,6 +360,8 @@ switch upper(strrep(opts.Optimizer, '_', '-'))
     case 'FOPSO-GWO', opts.Optimizer = 'FOPSO-GWO';  fitness = 'composite';
     case 'FBPA',      opts.Optimizer = 'FBPA';       fitness = 'itae';
     case 'PSO',       opts.Optimizer = 'PSO';        fitness = 'composite';
+    case 'CMA-ES',    opts.Optimizer = 'CMA-ES';     fitness = 'composite';
+    case 'FOPSO-GWO-CMA', opts.Optimizer = 'FOPSO-GWO-CMA';  fitness = 'composite';
     otherwise, error('tune_fopid_hybrid:optimizer', 'unknown optimizer ''%s''', opts.Optimizer);
 end
 stem = lower(strrep(opts.Optimizer, '-', '_'));
