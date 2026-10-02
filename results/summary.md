@@ -60,8 +60,8 @@ Fig. 19 and its torque curves are numerical artefacts (Sect. 7; docs/audit_repor
 | ITAE sine | n/a | 3.56 | 2.44 | 2.274 | 1.719 | **1.769** | n/a | -27.5 % | -22.2 % |  |
 
 On the paper's five metrics FOPSO-GWO-CC is better than the paper's FBPA-FOPID table on
-5 of 5, than its figures on 5 of 5, and than this work's FBPA-FOPID on 5 of 5;
-than PSO-FOPID, tuned with the same cost, on 5 of 5 and both ITAEs 2 of 2.
+4 of 5, than its figures on 5 of 5, and than this work's FBPA-FOPID on 5 of 5;
+than PSO-FOPID, tuned with the same cost, on 5 of 5 and both ITAEs 2 of 2 (equal to the table on 1).
 Negative changes are improvements. The adjustment and peak times are measured from t = 0,
 as in the paper, so every one is at least 1 s; the last column compares them after the
 step at t = 1 s, as the cost does. What the torque costs is in Sect. 3.
@@ -147,12 +147,15 @@ equal evaluations, the best cost each run had reached after 3030 evaluations (FB
 | paper | PSO | 8 | 0.0352 | 0.0892 | 0.0878 | 0.1443 | 0.0878 |
 | paper | FBPA | 4 | 0.0955 | 0.1402 | 0.1338 | 0.1591 | 0.2786 |
 | paper | FOPSO-GWO | 8 | 0.0865 | 0.1218 | 0.1160 | 0.1346 | 0.1160 |
+| paper | FOPSO-GWO-CC | 8 | 0.0399 | 0.1026 | 0.0926 | 0.1300 | 0.0926 |
 | fbpa | PSO | 8 | 0.3413 | 0.3791 | 0.3878 | 0.4437 | 0.3878 |
 | fbpa | FBPA | 4 | 0.3856 | 0.5118 | 0.4858 | 0.5340 | 1.6694 |
 | fbpa | FOPSO-GWO | 8 | 0.3309 | 0.3478 | 0.3516 | 0.3842 | 0.3516 |
+| fbpa | FOPSO-GWO-CC | 8 | 0.1724 | 0.2660 | 0.2566 | 0.2925 | 0.2566 |
 | fbpa_all | PSO | 8 | 0.3886 | 0.6434 | 0.7851 | 1.3962 | 0.7851 |
 | fbpa_all | FBPA | 4 | 0.4491 | 1.0723 | 1.2239 | 2.3021 | 10.0992 |
 | fbpa_all | FOPSO-GWO | 8 | 0.5177 | 1.3711 | 1.1928 | 1.4715 | 1.1928 |
+| fbpa_all | FOPSO-GWO-CC | 8 | 0.3258 | 0.4766 | 0.6148 | 1.0401 | 0.6148 |
 | whole | PSO | 8 | 1.3779 | 2.2230 | 2.1810 | 2.9826 | 2.1810 |
 | whole | FBPA | 8 | 1.1864 | 2.4115 | 2.4620 | 4.4183 | 5.4653 |
 | whole | FOPSO-GWO | 8 | 1.4156 | 1.7179 | 1.7636 | 2.1603 | 1.7636 |
@@ -163,18 +166,18 @@ Head to head, FOPSO-GWO-CC against each of the others (same cost and random seed
 
 | FOPSO-GWO-CC against | seed and cost pairs with the lower final cost | costs with the lower mean | costs with the lower best run | costs with the lower mean at 3030 evaluations |
 |---|---:|---:|---:|---:|
-| PSO | 8 of 8 | 1 of 1 | 1 of 1 | 1 of 1 |
-| FBPA | 8 of 8 | 1 of 1 | 1 of 1 | 1 of 1 |
-| FOPSO-GWO | 8 of 8 | 1 of 1 | 1 of 1 | 1 of 1 |
+| PSO | 26 of 32 | 3 of 4 | 3 of 4 | 3 of 4 |
+| FBPA | 19 of 20 | 4 of 4 | 4 of 4 | 4 of 4 |
+| FOPSO-GWO | 29 of 32 | 4 of 4 | 4 of 4 | 4 of 4 |
 | FOPSO-GWO-CMA | 8 of 8 | 1 of 1 | 1 of 1 | 1 of 1 |
 
 Per cost, the random seeds on which FOPSO-GWO-CC ends lower than ...
 
 | Cost | PSO | FBPA | FOPSO-GWO | FOPSO-GWO-CMA |
 |---|---:|---:|---:|---:|
-| paper | | | | |
-| fbpa | | | | |
-| fbpa_all | | | | |
+| paper | 4 of 8 | 3 of 4 | 5 of 8 | |
+| fbpa | 8 of 8 | 4 of 4 | 8 of 8 | |
+| fbpa_all | 6 of 8 | 4 of 4 | 8 of 8 | |
 | whole | 8 of 8 | 8 of 8 | 8 of 8 | 8 of 8 |
 
 The best run of each, on the paper's metrics:
@@ -184,12 +187,15 @@ The best run of each, on the paper's metrics:
 | paper | PSO (3) | 0.101 | 0.1409 | 5.1 | 1.026 | 1.028 | 2.150e-03 | 4.394e+05 | 4 of 5 | 4 of 5 |
 | paper | FBPA (1) | 0.2742 | 0.4428 | 26.9 | 1.116 | 1.053 | 2.734e-04 | 1.113e+04 | 4 of 5 | 3 of 5 |
 | paper | FOPSO-GWO (7) | 0.2484 | 0.6533 | 20.7 | 1.122 | 1.128 | 3.066e-04 | 9512 | 4 of 5 | 4 of 5 |
+| paper | FOPSO-GWO-CC (8) | 0.1146 | 0.2525 | 5.7 | 1.036 | 1.045 | 6.787e-05 | 3.237e+04 | 4 of 5 | 4 of 5 |
 | fbpa | PSO (8) | 0.7676 | 0.6078 | 4.2 | 1.147 | 1.075 | 2.725e-04 | 9495 | 5 of 5 | 5 of 5 |
 | fbpa | FBPA (1) | 0.9997 | 0.8657 | 7.5 | 1.142 | 1.078 | 3.459e-04 | 9629 | 5 of 5 | 5 of 5 |
 | fbpa | FOPSO-GWO (2) | 0.5732 | 0.5338 | 5.3 | 1.130 | 1.073 | 2.283e-04 | 9439 | 5 of 5 | 5 of 5 |
+| fbpa | FOPSO-GWO-CC (1) | 0.1614 | 0.2953 | 2.0 | 1.030 | 1.035 | 8.063e-05 | 9373 | 5 of 5 | 5 of 5 |
 | fbpa_all | PSO (4) | 0.1752 | 0.2028 | 8.1 | 1.034 | 1.033 | 4.214e-05 | 9342 | 5 of 5 | 5 of 5 |
 | fbpa_all | FBPA (2) | 0.1569 | 0.1596 | 11.5 | 1.053 | 1.037 | 3.290e-05 | 9623 | 5 of 5 | 5 of 5 |
 | fbpa_all | FOPSO-GWO (5) | 0.5816 | 0.4563 | 8.2 | 1.052 | 1.032 | 1.902e-04 | 9417 | 5 of 5 | 5 of 5 |
+| fbpa_all | FOPSO-GWO-CC (2) | 0.1366 | 0.1563 | 4.6 | 1.029 | 1.028 | 2.444e-05 | 9297 | 5 of 5 | 5 of 5 |
 | whole | PSO (4) | 1.047 | 2.274 | 17.8 | 1.329 | 1.113 | 2.747e-03 | 1.013e+04 | 4 of 5 | 4 of 5 |
 | whole | FBPA (7) | 1.03 | 1.772 | 19.3 | 1.422 | 1.102 | 1.357e-03 | 1.016e+04 | 4 of 5 | 4 of 5 |
 | whole | FOPSO-GWO (6) | 1.188 | 1.719 | 13.6 | 1.353 | 1.112 | 1.876e-03 | 9610 | 4 of 5 | 5 of 5 |
