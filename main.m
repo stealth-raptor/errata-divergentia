@@ -13,7 +13,8 @@ function results = main(mode)
 %                   FBPA-FOPID
 %     PSO           the FOPID tuned by plain PSO (the paper's improved PSO) and
 %     FOPSO_GWO     by this work's FO-PSO / grey-wolf hybrid and
-%     FOPSO_GWO_CMA by that hybrid with its CMA-ES refinement stage, all with
+%     FOPSO_GWO_CMA by that hybrid with its CMA-ES refinement stage, and
+%     FOPSO_GWO_CC  by that hybrid with cooperative coevolution, all with
 %                   the whole-controller cost (results/<name>_gains.mat, from
 %                   TUNE_FOPID_HYBRID), when those files exist; one gain set
 %                   for both experiments
@@ -56,7 +57,7 @@ if ~exist(outdir, 'dir'), mkdir(outdir); end
 
 P = robot_params();
 controllers = {'PID', 'FOPID', 'FBPA'};
-for c = {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'}
+for c = {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC'}
     if exist(tuned_file(c{1}), 'file'), controllers{end+1} = c{1}; end %#ok<AGROW>
 end
 
@@ -79,7 +80,7 @@ end
 fprintf('Simulating %d controllers x 2 experiments (%s gains) ...\n', numel(controllers), mode);
 for i = 1:numel(controllers)
     name = controllers{i};
-    tuned = any(strcmp(name, {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'}));
+    tuned = any(strcmp(name, {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC'}));
     if tuned || strcmp(mode, 'shared')
         gains.step = controller_gains(name);      % one set for both experiments
         gains.sine = gains.step;
@@ -148,6 +149,7 @@ switch name
     case 'FBPA',      s = 'FBPA-FOPID';
     case 'FOPSO_GWO', s = 'FOPSO-GWO';
     case 'FOPSO_GWO_CMA', s = 'FOPSO-GWO-CMA';
+    case 'FOPSO_GWO_CC',  s = 'FOPSO-GWO-CC';
     case 'PSO',       s = 'PSO-FOPID';
     otherwise,        s = name;
 end
@@ -228,15 +230,19 @@ if has('FOPSO_GWO')
 end
 if has('FOPSO_GWO_CMA')
     T = results.FOPSO_GWO_CMA.tuning;
-    out('  * FOPSO-GWO-CMA: the same FOPSO-GWO for 60 %% of the budget, then sep-CMA-ES hunts
-');
-    out('    from the pack''s three leaders and a CMA-ES refinement of the best one
-');
-    out('    (`hybrid_fopso_cma.m`), within the same 3030 evaluations, cost, seed controller and
-');
-    out('    initial swarms; the best of random seeds 1-8 (seed %d), as for the others.
-', ...
+    out('  * FOPSO-GWO-CMA: the same FOPSO-GWO for 60 %% of the budget, then sep-CMA-ES hunts\n');
+    out('    from the pack''s three leaders and a CMA-ES refinement of the best one\n');
+    out('    (`hybrid_fopso_cma.m`), within the same 3030 evaluations, cost, seed controller and\n');
+    out('    initial swarms; the best of random seeds 1-8 (seed %d), as for the others.\n', ...
         T.info.options.RandomSeed);
+end
+if has('FOPSO_GWO_CC')
+    T = results.FOPSO_GWO_CC.tuning;
+    out('  * FOPSO-GWO-CC: the same FOPSO-GWO for 30 %% of the budget, then cooperative\n');
+    out('    coevolution: one sub-swarm of five per joint, each moving by the FOPSO-GWO\n');
+    out('    equations in its joint''s five gains (`hybrid_fopso_cc.m`); the same 30 particles,\n');
+    out('    3030 evaluations, cost, seed controller and initial swarms; the best of random\n');
+    out('    seeds 1-8 (seed %d), as for the others.\n', T.info.options.RandomSeed);
 end
 out('\n');
 
@@ -253,20 +259,21 @@ end
 if has('PSO')
     out('| PSO-FOPID | This work (improved PSO) | %s |\n', row(f5, results.PSO.summary));
 end
-if has('FOPSO_GWO') && has('FOPSO_GWO_CMA')
-    out('| FOPSO-GWO | This work | %s |\n', row(f5, results.FOPSO_GWO.summary));
-elseif has('FOPSO_GWO')
-    out('| **FOPSO-GWO** | **This work (proposed)** | %s |\n', row(f5, results.FOPSO_GWO.summary, true));
-end
-if has('FOPSO_GWO_CMA')
-    out('| **FOPSO-GWO-CMA** | **This work (proposed)** | %s |\n', ...
-        row(f5, results.FOPSO_GWO_CMA.summary, true));
+props = {'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC'};
+props = props(cellfun(has, props));
+for i = 1:numel(props)
+    if i == numel(props)
+        out('| **%s** | **This work (proposed)** | %s |\n', display_name(props{i}), ...
+            row(f5, results.(props{i}).summary, true));
+    else
+        out('| %s | This work | %s |\n', display_name(props{i}), row(f5, results.(props{i}).summary));
+    end
 end
 out('\n');
 out('PID, FOPID, FBPA-FOPID: reproductions, with the gains that make the simulation match each\n');
-out('controller''s published curves (Sect. 6); the paper publishes no gains. PSO-FOPID,\n');
-out('FOPSO-GWO and FOPSO-GWO-CMA: tuned by their optimisers with the same cost, budget and\n');
-out('starting swarm.\n');
+out('controller''s published curves (Sect. 6); the paper publishes no gains. PSO-FOPID and\n');
+out('the FOPSO-GWO variants: tuned by their optimisers with the same cost, budget and starting\n');
+out('swarm.\n');
 out('The paper''s torque column is not a reproducible target: it is a permutation of its own\n');
 out('Fig. 19 and its torque curves are numerical artefacts (Sect. 7; docs/audit_report.md,\n');
 out('3.3-3.4).\n');
@@ -275,10 +282,11 @@ out('3.3-3.4).\n');
 prop = '';
 if has('FOPSO_GWO'), prop = 'FOPSO_GWO'; end
 if has('FOPSO_GWO_CMA'), prop = 'FOPSO_GWO_CMA'; end
+if has('FOPSO_GWO_CC'), prop = 'FOPSO_GWO_CC'; end
 if ~isempty(prop)
     pname = display_name(prop);
     pso_ = has('PSO');
-    gwo_ = strcmp(prop, 'FOPSO_GWO_CMA') && has('FOPSO_GWO');
+    gwo_ = ~strcmp(prop, 'FOPSO_GWO') && has('FOPSO_GWO');
     if pso_
         out('\n## 2. %s against FBPA-FOPID and PSO-FOPID\n\n', pname);
     else
@@ -351,7 +359,7 @@ out('\n## 5. Per joint\n');
 for r = 1:size(rows, 1)
     out('\n### %s\n\n| Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |\n', rows{r,1});
     out('|---|---|---:|---:|---:|---:|---:|---:|\n');
-    for c = {'PID', 'FOPID', 'FBPA', 'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'}
+    for c = {'PID', 'FOPID', 'FBPA', 'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC'}
         if isfield(figs, c{1})
             out('| %s | Paper figures | %s |\n', display_name(c{1}), ...
                 join_fmt(rows{r,4}, figs.(c{1}).(rows{r,2}).(rows{r,3})));
@@ -396,7 +404,7 @@ out('\n## 8. Gains\n');
 for i = 1:numel(controllers)
     c = controllers{i};
     sets = {'step', 'sine'};
-    if strcmp(mode, 'shared') || any(strcmp(c, {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'})), sets = {'step'}; end
+    if strcmp(mode, 'shared') || any(strcmp(c, {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC'})), sets = {'step'}; end
     for e = sets
         g = results.(c).gains.(e{1});
         if numel(sets) == 1
@@ -431,7 +439,7 @@ for i = 1:numel(controllers)
         max(e.step.kick), max(e.step.peak), max(e.sine.peak), mean(e.step.sum), mean(e.sine.sum), ...
         mean(e.step.tv), mean(e.sine.tv));
 end
-tuned = {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'};
+tuned = {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC'};
 tuned = tuned(ismember(tuned, controllers));
 if isempty(tuned), return; end
 T = results.(tuned{end}).tuning;
@@ -475,10 +483,10 @@ function report_optimizers(out, runs, paper, rerun)
 %   rerun: the five paper metrics of the FBPA-FOPID shown in Sects 1-2 ([] if none).
 costs = {'paper', 'fbpa', 'fbpa_all', 'whole'};
 costs = costs(ismember(costs, {runs.cost}));
-names = {'PSO', 'FBPA', 'FOPSO-GWO', 'FOPSO-GWO-CMA'};
+names = {'PSO', 'FBPA', 'FOPSO-GWO', 'FOPSO-GWO-CMA', 'FOPSO-GWO-CC'};
 names = names(ismember(names, {runs.optimizer}));
 lead = 'FOPSO-GWO';                                % the optimiser compared with the others
-if any(strcmp(names, 'FOPSO-GWO-CMA')), lead = 'FOPSO-GWO-CMA'; end
+if any(strcmp(names, 'FOPSO-GWO-CC')), lead = 'FOPSO-GWO-CC'; end
 budget = min([runs.evaluations]);                  % one evaluation per particle and iteration
 out('\n## 4. The optimisers: %s under the same costs, seeds and budget\n\n', strjoin(names, ', '));
 out('`tools/compare_optimizers.m` runs %s under %d costs. For a fair comparison\n', ...
@@ -493,9 +501,10 @@ out('* each algorithm with its standard or published coefficients: PSO c1 = c2 =
 out('  0.9 -> 0.4 (the paper''s improved PSO, Eqs. 23-24), FBPA the paper''s Sect. 4 settings,\n');
 out('  FOPSO-GWO its final settings (c1 = c2 = 1.5, c3 = 1, fractional order 0.9, chosen on\n');
 out('  separate development seeds, below), FOPSO-GWO-CMA the same swarm for 60 %% of the budget\n');
-out('  and CMA-ES after it (also chosen on development seeds); the swarms limit |v| to 0.2 of\n');
-out('  each range, FBPA to 1;\n');
-out('* PSO, FOPSO-GWO and FOPSO-GWO-CMA evaluate the cost %d times in all, FBPA three times\n', budget);
+out('  and CMA-ES after it, FOPSO-GWO-CC the same swarm for 30 %% and cooperative coevolution\n');
+out('  by joint after it (both also chosen on development seeds); the swarms limit |v| to 0.2\n');
+out('  of each range, FBPA to 1;\n');
+out('* PSO and the FOPSO-GWO variants evaluate the cost %d times in all, FBPA three times\n', budget);
 out('  as often (its beetle antennae).\n\n');
 out('The costs:\n\n');
 out('* **paper:** the paper''s fitness, ITAE of the step response (Eq. 29), relative to the FOPID\n');

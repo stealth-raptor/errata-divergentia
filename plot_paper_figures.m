@@ -21,7 +21,8 @@ function plot_paper_figures(results, outdir)
 %   FBPA-FOPID (results.FBPA, the reproduction of the paper's), PSO-FOPID
 %   (results.PSO, tuned by plain PSO), FOPSO-GWO (results.FOPSO_GWO) and
 %   FOPSO-GWO-CMA (results.FOPSO_GWO_CMA, this work's) are drawn when present,
-%   PSO-FOPID in cyan, FOPSO-GWO in magenta, FOPSO-GWO-CMA in purple.
+%   PSO-FOPID in cyan, FOPSO-GWO in magenta, FOPSO-GWO-CMA in purple and
+%   FOPSO-GWO-CC (results.FOPSO_GWO_CC) in amber.
 %
 %   In addition, compare_step.png and compare_sine.png overlay every
 %   published curve (thick black, read from the paper's vector graphics)
@@ -43,10 +44,11 @@ MAGENTA = [0.85 0 0.85];
 ORANGE  = [0.95 0.5 0];
 CYAN    = [0 0.7 0.8];
 PURPLE  = [0.45 0.2 0.75];
+AMBER   = [0.85 0.55 0];
 
 % the tuned controllers present, drawn after PID and FOPID
 extra = {'FBPA', 'FBPA-FOPID', BLACK; 'PSO', 'PSO-FOPID', CYAN; 'FOPSO_GWO', 'FOPSO-GWO', MAGENTA
-         'FOPSO_GWO_CMA', 'FOPSO-GWO-CMA', PURPLE};
+         'FOPSO_GWO_CMA', 'FOPSO-GWO-CMA', PURPLE; 'FOPSO_GWO_CC', 'FOPSO-GWO-CC', AMBER};
 extra = extra(isfield(results, extra(:, 1)), :);
 names = [{'PID', 'FOPID'}, extra(:, 2)'];
 

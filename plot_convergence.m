@@ -18,7 +18,7 @@ nc = size(costs, 1);
 ncol = min(nc, 2);
 nrow = ceil(nc / ncol);
 colour = struct('PSO', [0 0.6 0], 'FBPA', [0 0 0], 'FOPSO_GWO', [0.85 0 0.85], ...
-                'FOPSO_GWO_CMA', [0.45 0.2 0.75]);
+                'FOPSO_GWO_CMA', [0.45 0.2 0.75], 'FOPSO_GWO_CC', [0.85 0.55 0]);
 fig = figure('Visible', 'off', 'Position', [100 100 550*ncol 420*nrow], 'Color', 'w');
 for c = 1:nc
     subplot(nrow, ncol, c); hold on; grid on; box on;

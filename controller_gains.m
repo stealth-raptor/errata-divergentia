@@ -4,7 +4,7 @@ function gains = controller_gains(controller, experiment)
 %   gains = CONTROLLER_GAINS(controller)              one gain set for both experiments
 %   gains = CONTROLLER_GAINS(controller, experiment)  gain set for one experiment
 %     controller  'PID' (lambda = mu = 1), 'FOPID', 'FBPA' (the FBPA-FOPID),
-%                 'PSO' (the PSO-FOPID), 'FOPSO_GWO' or 'FOPSO_GWO_CMA'
+%                 'PSO' (the PSO-FOPID), 'FOPSO_GWO', 'FOPSO_GWO_CMA' or 'FOPSO_GWO_CC'
 %     experiment  'step', 'sine', or 'shared' (the default)
 %
 %   Each field is 6x1, one entry per joint.  The paper publishes no gains.
@@ -26,7 +26,8 @@ function gains = controller_gains(controller, experiment)
 %                 default.
 %
 %   'FOPSO_GWO'   the FOPID tuned by this work's FO-PSO / grey-wolf hybrid,
-%   'FOPSO_GWO_CMA' by that hybrid with its CMA-ES refinement, and
+%   'FOPSO_GWO_CMA' by that hybrid with its CMA-ES refinement,
+%   'FOPSO_GWO_CC' by that hybrid with cooperative coevolution, and
 %   'PSO'         by plain PSO (the paper's improved PSO), all with the same
 %                 whole-controller cost (TUNE_FOPID_HYBRID), read from
 %                 results/<name in lower case>_gains.mat;
@@ -39,7 +40,7 @@ function gains = controller_gains(controller, experiment)
 %   See also FOPID_CONTROLLER, ROBOT_PARAMS, MAIN, TUNE_FOPID_HYBRID.
 
 if nargin < 2, experiment = 'shared'; end
-if any(strcmpi(controller, {'FOPSO_GWO', 'FOPSO_GWO_CMA', 'PSO'}))
+if any(strcmpi(controller, {'FOPSO_GWO', 'FOPSO_GWO_CMA', 'FOPSO_GWO_CC', 'PSO'}))
     file = tuned_file(controller);
     if ~exist(file, 'file')
         error('controller_gains:untuned', 'no tuned gains in %s; run tune_fopid_hybrid first', file);
