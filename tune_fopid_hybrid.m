@@ -220,6 +220,7 @@ switch opts.Optimizer
     case 'PSO',           [z_best, info] = pso(cost, B.n, opt_opts);
     case 'CMA-ES',        [z_best, info] = cmaes(cost, B.n, opt_opts);
     case 'FOPSO-GWO-CMA', [z_best, info] = hybrid_fopso_cma(cost, B.n, opt_opts);
+    case 'FOPSO-GWO-CC',  [z_best, info] = hybrid_fopso_cc(cost, B.n, opt_opts);
     otherwise,            [z_best, info] = hybrid_fopso_gwo(cost, B.n, opt_opts);
 end
 
@@ -366,6 +367,7 @@ switch upper(strrep(opts.Optimizer, '_', '-'))
     case 'PSO',       opts.Optimizer = 'PSO';        fitness = 'composite';
     case 'CMA-ES',    opts.Optimizer = 'CMA-ES';     fitness = 'composite';
     case 'FOPSO-GWO-CMA', opts.Optimizer = 'FOPSO-GWO-CMA';  fitness = 'composite';
+    case 'FOPSO-GWO-CC',  opts.Optimizer = 'FOPSO-GWO-CC';   fitness = 'composite';
     otherwise, error('tune_fopid_hybrid:optimizer', 'unknown optimizer ''%s''', opts.Optimizer);
 end
 stem = lower(strrep(opts.Optimizer, '-', '_'));

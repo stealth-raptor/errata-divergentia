@@ -38,6 +38,10 @@ function develop_fopso_gwo(seeds, candidates, cost)
 %          each iteration (HYBRID_FOPSO_GWO, CrossFraction)
 %     X2   X1 with 33 %
 %     X3   X1 from 30 % of the run on
+%     C1   FOPSO-GWO-CC (HYBRID_FOPSO_CC): L for 50 % of the iterations, then
+%          cooperative coevolution, one sub-swarm per joint
+%     C2   C1 with the full swarm for 30 %
+%     C3   coevolution from the start
 %     PSO  plain PSO, the reference
 %
 %   First all of them under cost 'fbpa', then the best of those and three
@@ -77,6 +81,9 @@ all_candidates = { ...
     'X1',  'FOPSO-GWO', struct(L{:}, 'CrossFraction', 0.2)
     'X2',  'FOPSO-GWO', struct(L{:}, 'CrossFraction', 0.33)
     'X3',  'FOPSO-GWO', struct(L{:}, 'CrossFraction', 0.2, 'CrossStart', 0.3)
+    'C1',  'FOPSO-GWO-CC', struct('SwarmFraction', 0.5)
+    'C2',  'FOPSO-GWO-CC', struct('SwarmFraction', 0.3)
+    'C3',  'FOPSO-GWO-CC', struct('SwarmFraction', 0)
     'PSO', 'PSO',       struct()};
 if nargin < 1 || isempty(seeds),      seeds = 101:104; end
 if nargin < 2 || isempty(candidates), candidates = all_candidates(:, 1)'; end
