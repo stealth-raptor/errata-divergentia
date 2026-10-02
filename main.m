@@ -12,10 +12,11 @@ function results = main(mode)
 %     FBPA          its published curves (CONTROLLER_GAINS); FBPA is the
 %                   FBPA-FOPID
 %     PSO           the FOPID tuned by plain PSO (the paper's improved PSO) and
-%     FOPSO_GWO     by this work's FO-PSO / grey-wolf hybrid, both with the
-%                   whole-controller cost (results/pso_gains.mat and
-%                   results/fopso_gwo_gains.mat, from TUNE_FOPID_HYBRID), when
-%                   those files exist; one gain set for both experiments
+%     FOPSO_GWO     by this work's FO-PSO / grey-wolf hybrid and
+%     FOPSO_GWO_CMA by that hybrid with its CMA-ES refinement stage, all with
+%                   the whole-controller cost (results/<name>_gains.mat, from
+%                   TUNE_FOPID_HYBRID), when those files exist; one gain set
+%                   for both experiments
 %
 %   results/summary.md compares them with the paper's Tables 3 and 4, with
 %   the same metrics recomputed from the paper's own published curves (read
@@ -55,7 +56,7 @@ if ~exist(outdir, 'dir'), mkdir(outdir); end
 
 P = robot_params();
 controllers = {'PID', 'FOPID', 'FBPA'};
-for c = {'PSO', 'FOPSO_GWO'}
+for c = {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'}
     if exist(tuned_file(c{1}), 'file'), controllers{end+1} = c{1}; end %#ok<AGROW>
 end
 
@@ -78,7 +79,7 @@ end
 fprintf('Simulating %d controllers x 2 experiments (%s gains) ...\n', numel(controllers), mode);
 for i = 1:numel(controllers)
     name = controllers{i};
-    tuned = any(strcmp(name, {'PSO', 'FOPSO_GWO'}));
+    tuned = any(strcmp(name, {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'}));
     if tuned || strcmp(mode, 'shared')
         gains.step = controller_gains(name);      % one set for both experiments
         gains.sine = gains.step;
@@ -146,6 +147,7 @@ function s = display_name(name)
 switch name
     case 'FBPA',      s = 'FBPA-FOPID';
     case 'FOPSO_GWO', s = 'FOPSO-GWO';
+    case 'FOPSO_GWO_CMA', s = 'FOPSO-GWO-CMA';
     case 'PSO',       s = 'PSO-FOPID';
     otherwise,        s = name;
 end
@@ -224,6 +226,18 @@ if has('FOPSO_GWO')
     out('    seeded with the identified FOPID, one gain set for both experiments; %s\n', fitness_text(T));
     out('    (random seed %d).\n', T.info.options.RandomSeed);
 end
+if has('FOPSO_GWO_CMA')
+    T = results.FOPSO_GWO_CMA.tuning;
+    out('  * FOPSO-GWO-CMA: the same FOPSO-GWO for 60 %% of the budget, then sep-CMA-ES hunts
+');
+    out('    from the pack''s three leaders and a CMA-ES refinement of the best one
+');
+    out('    (`hybrid_fopso_cma.m`), within the same 3030 evaluations, cost, seed controller and
+');
+    out('    initial swarms; the best of random seeds 1-8 (seed %d), as for the others.
+', ...
+        T.info.options.RandomSeed);
+end
 out('\n');
 
 % ---- 1. the paper's Tables 3 and 4 against this work ---------------------
@@ -239,28 +253,40 @@ end
 if has('PSO')
     out('| PSO-FOPID | This work (improved PSO) | %s |\n', row(f5, results.PSO.summary));
 end
-if has('FOPSO_GWO')
+if has('FOPSO_GWO') && has('FOPSO_GWO_CMA')
+    out('| FOPSO-GWO | This work | %s |\n', row(f5, results.FOPSO_GWO.summary));
+elseif has('FOPSO_GWO')
     out('| **FOPSO-GWO** | **This work (proposed)** | %s |\n', row(f5, results.FOPSO_GWO.summary, true));
+end
+if has('FOPSO_GWO_CMA')
+    out('| **FOPSO-GWO-CMA** | **This work (proposed)** | %s |\n', ...
+        row(f5, results.FOPSO_GWO_CMA.summary, true));
 end
 out('\n');
 out('PID, FOPID, FBPA-FOPID: reproductions, with the gains that make the simulation match each\n');
-out('controller''s published curves (Sect. 6); the paper publishes no gains. PSO-FOPID and\n');
-out('FOPSO-GWO: tuned by the two optimisers with the same cost, budget and starting swarm.\n');
+out('controller''s published curves (Sect. 6); the paper publishes no gains. PSO-FOPID,\n');
+out('FOPSO-GWO and FOPSO-GWO-CMA: tuned by their optimisers with the same cost, budget and\n');
+out('starting swarm.\n');
 out('The paper''s torque column is not a reproducible target: it is a permutation of its own\n');
 out('Fig. 19 and its torque curves are numerical artefacts (Sect. 7; docs/audit_report.md,\n');
 out('3.3-3.4).\n');
 
-% ---- 2. FOPSO-GWO against FBPA-FOPID -------------------------------------
-if has('FOPSO_GWO')
+% ---- 2. the proposed controller against FBPA-FOPID and PSO-FOPID ---------
+prop = '';
+if has('FOPSO_GWO'), prop = 'FOPSO_GWO'; end
+if has('FOPSO_GWO_CMA'), prop = 'FOPSO_GWO_CMA'; end
+if ~isempty(prop)
+    pname = display_name(prop);
     pso_ = has('PSO');
+    gwo_ = strcmp(prop, 'FOPSO_GWO_CMA') && has('FOPSO_GWO');
     if pso_
-        out('\n## 2. FOPSO-GWO against FBPA-FOPID and PSO-FOPID\n\n');
+        out('\n## 2. %s against FBPA-FOPID and PSO-FOPID\n\n', pname);
     else
-        out('\n## 2. FOPSO-GWO against FBPA-FOPID\n\n');
+        out('\n## 2. %s against FBPA-FOPID\n\n', pname);
     end
     labels = [metric_names, {'ITAE step (Eq. 29)', 'ITAE sine'}];
     f7 = {'%.1f', '%.3f', '%.3f', '%.3e', '%.4g', '%.4g', '%.4g'};
-    H = [results.FOPSO_GWO.summary, results.FOPSO_GWO.itae];
+    H = [results.(prop).summary, results.(prop).itae];
     F = [results.FBPA.summary, results.FBPA.itae];
     tab = [paper.FBPA NaN NaN];
     fig = [figs.FBPA.summary, figs.FBPA.itae];
@@ -270,27 +296,37 @@ if has('FOPSO_GWO')
         Q = [results.PSO.summary, results.PSO.itae];
         hdr = [hdr ' PSO-FOPID |'];  sep = [sep '---:|'];
     end
-    hdr = [hdr ' **FOPSO-GWO** | vs paper table | vs this work''s FBPA-FOPID |'];
+    if gwo_
+        G = [results.FOPSO_GWO.summary, results.FOPSO_GWO.itae];
+        hdr = [hdr ' FOPSO-GWO |'];  sep = [sep '---:|'];
+    end
+    hdr = [hdr sprintf(' **%s** | vs paper table | vs this work''s FBPA-FOPID |', pname)];
     sep = [sep '---:|---:|---:|'];
     if pso_
-        hdr = [hdr ' vs PSO-FOPID |'];  sep = [sep '---:|'];
+        hdr = [hdr ' vs PSO-FOPID | vs PSO-FOPID, times after the step |'];  sep = [sep '---:|---:|'];
     end
     out('%s\n%s\n', hdr, sep);
     for k = 1:7
         cells = {num_or_na(f7{k}, tab(k)), num_or_na(f7{k}, fig(k)), sprintf(f7{k}, F(k))};
         if pso_, cells{end+1} = sprintf(f7{k}, Q(k)); end %#ok<AGROW>
+        if gwo_, cells{end+1} = sprintf(f7{k}, G(k)); end %#ok<AGROW>
         cells = [cells, {['**' sprintf(f7{k}, H(k)) '**'], change(H(k), tab(k)), change(H(k), F(k))}]; %#ok<AGROW>
-        if pso_, cells{end+1} = change(H(k), Q(k)); end %#ok<AGROW>
+        if pso_
+            cells{end+1} = change(H(k), Q(k)); %#ok<AGROW>
+            if any(k == [2 3]), cells{end+1} = change(H(k) - 1, Q(k) - 1); else, cells{end+1} = ''; end %#ok<AGROW>
+        end
         out('| %s | %s |\n', labels{k}, strjoin(cells, ' | '));
     end
-    out('\nOn the paper''s five metrics FOPSO-GWO is better than the paper''s FBPA-FOPID table on\n');
+    out('\nOn the paper''s five metrics %s is better than the paper''s FBPA-FOPID table on\n', pname);
     out('%d of 5, than its figures on %d of 5, and than this work''s FBPA-FOPID on %d of 5', ...
         sum(H(1:5) < tab(1:5)), sum(H(1:5) < fig(1:5)), sum(H(1:5) < F(1:5)));
     if pso_
         out(';\nthan PSO-FOPID, tuned with the same cost, on %d of 5 and both ITAEs %d of 2', ...
             sum(H(1:5) < Q(1:5)), sum(H(6:7) < Q(6:7)));
     end
-    out('.\nNegative changes are improvements. What the torque costs is in Sect. 3.\n');
+    out('.\nNegative changes are improvements. The adjustment and peak times are measured from t = 0,\n');
+    out('as in the paper, so every one is at least 1 s; the last column compares them after the\n');
+    out('step at t = 1 s, as the cost does. What the torque costs is in Sect. 3.\n');
 end
 
 % ---- 3. control effort ---------------------------------------------------
@@ -315,7 +351,7 @@ out('\n## 5. Per joint\n');
 for r = 1:size(rows, 1)
     out('\n### %s\n\n| Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |\n', rows{r,1});
     out('|---|---|---:|---:|---:|---:|---:|---:|\n');
-    for c = {'PID', 'FOPID', 'FBPA', 'PSO', 'FOPSO_GWO'}
+    for c = {'PID', 'FOPID', 'FBPA', 'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'}
         if isfield(figs, c{1})
             out('| %s | Paper figures | %s |\n', display_name(c{1}), ...
                 join_fmt(rows{r,4}, figs.(c{1}).(rows{r,2}).(rows{r,3})));
@@ -360,7 +396,7 @@ out('\n## 8. Gains\n');
 for i = 1:numel(controllers)
     c = controllers{i};
     sets = {'step', 'sine'};
-    if strcmp(mode, 'shared') || any(strcmp(c, {'PSO', 'FOPSO_GWO'})), sets = {'step'}; end
+    if strcmp(mode, 'shared') || any(strcmp(c, {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'})), sets = {'step'}; end
     for e = sets
         g = results.(c).gains.(e{1});
         if numel(sets) == 1
@@ -395,16 +431,16 @@ for i = 1:numel(controllers)
         max(e.step.kick), max(e.step.peak), max(e.sine.peak), mean(e.step.sum), mean(e.sine.sum), ...
         mean(e.step.tv), mean(e.sine.tv));
 end
-if ~any(strcmp(controllers, 'FOPSO_GWO')), return; end
-T = results.FOPSO_GWO.tuning;
+tuned = {'PSO', 'FOPSO_GWO', 'FOPSO_GWO_CMA'};
+tuned = tuned(ismember(tuned, controllers));
+if isempty(tuned), return; end
+T = results.(tuned{end}).tuning;
 if ~isfield(T, 'fitness') || ~isfield(T.fitness, 'whole') || isempty(T.fitness.whole), return; end
 W = T.fitness.whole;
-tuned = {'PSO', 'FOPSO_GWO'};
-tuned = tuned(ismember(tuned, controllers));
 scale = '';
 if W.cap_scale ~= 1, scale = sprintf(', times %g', W.cap_scale); end
 out('\n%s %s tuned with caps per joint: for the torque, the largest peak any of the\n', ...
-    strjoin(cellfun(@display_name, tuned, 'UniformOutput', false), ' and '), ...
+    strjoin(cellfun(@display_name, tuned, 'UniformOutput', false), ', '), ...
     ifelse(numel(tuned) > 1, 'were', 'was'));
 out('paper''s three controllers needs on that joint over all their identified gain sets (Nm%s);\n', scale);
 out('for the overshoot, the worst joint of the paper''s own FBPA-FOPID figures (%%):\n\n');
@@ -439,10 +475,12 @@ function report_optimizers(out, runs, paper, rerun)
 %   rerun: the five paper metrics of the FBPA-FOPID shown in Sects 1-2 ([] if none).
 costs = {'paper', 'fbpa', 'fbpa_all', 'whole'};
 costs = costs(ismember(costs, {runs.cost}));
-names = {'PSO', 'FBPA', 'FOPSO-GWO'};
+names = {'PSO', 'FBPA', 'FOPSO-GWO', 'FOPSO-GWO-CMA'};
 names = names(ismember(names, {runs.optimizer}));
+lead = 'FOPSO-GWO';                                % the optimiser compared with the others
+if any(strcmp(names, 'FOPSO-GWO-CMA')), lead = 'FOPSO-GWO-CMA'; end
 budget = min([runs.evaluations]);                  % one evaluation per particle and iteration
-out('\n## 4. The optimisers: PSO, FBPA and FOPSO-GWO under the same costs, seeds and budget\n\n');
+out('\n## 4. The optimisers: %s under the same costs, seeds and budget\n\n', strjoin(names, ', '));
 out('`tools/compare_optimizers.m` runs %s under %d costs. For a fair comparison\n', ...
     strjoin(names, ', '), numel(costs));
 out('everything but the algorithm is the same:\n\n');
@@ -454,10 +492,11 @@ out('* the same cost function, conditioning check and early abort of unstable ca
 out('* each algorithm with its standard or published coefficients: PSO c1 = c2 = 2 and inertia\n');
 out('  0.9 -> 0.4 (the paper''s improved PSO, Eqs. 23-24), FBPA the paper''s Sect. 4 settings,\n');
 out('  FOPSO-GWO its final settings (c1 = c2 = 1.5, c3 = 1, fractional order 0.9, chosen on\n');
-out('  separate development seeds, below); PSO and FOPSO-GWO limit |v| to 0.2 of each range,\n');
-out('  FBPA to 1;\n');
-out('* PSO and FOPSO-GWO evaluate the cost once per particle and iteration (%d evaluations), FBPA\n', budget);
-out('  three times (its beetle antennae).\n\n');
+out('  separate development seeds, below), FOPSO-GWO-CMA the same swarm for 60 %% of the budget\n');
+out('  and CMA-ES after it (also chosen on development seeds); the swarms limit |v| to 0.2 of\n');
+out('  each range, FBPA to 1;\n');
+out('* PSO, FOPSO-GWO and FOPSO-GWO-CMA evaluate the cost %d times in all, FBPA three times\n', budget);
+out('  as often (its beetle antennae).\n\n');
 out('The costs:\n\n');
 out('* **paper:** the paper''s fitness, ITAE of the step response (Eq. 29), relative to the FOPID\n');
 out('  (the FOPID scores 1).\n');
@@ -489,16 +528,16 @@ for c = costs
     end
 end
 
-% head to head: FOPSO-GWO against each other optimiser, same cost and random seed
-if any(strcmp(names, 'FOPSO-GWO')) && numel(names) > 1
-    out('\nHead to head, FOPSO-GWO against each of the others (same cost and random seed):\n\n');
-    out('| FOPSO-GWO against | seed and cost pairs with the lower final cost | costs with the lower mean | ');
+% head to head: the lead optimiser against each other one, same cost and random seed
+if any(strcmp(names, lead)) && numel(names) > 1
+    out('\nHead to head, %s against each of the others (same cost and random seed):\n\n', lead);
+    out('| %s against | seed and cost pairs with the lower final cost | costs with the lower mean | ', lead);
     out('costs with the lower best run | costs with the lower mean at %d evaluations |\n', budget);
     out('|---|---:|---:|---:|---:|\n');
-    for o = names(~strcmp(names, 'FOPSO-GWO'))
+    for o = names(~strcmp(names, lead))
         pairs = 0;  seed_wins = 0;  mean_wins = 0;  best_wins = 0;  equal_wins = 0;  nc = 0;
         for c = costs
-            A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FOPSO-GWO'));
+            A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, lead));
             B = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, o{1}));
             if isempty(A) || isempty(B), continue; end
             nc = nc + 1;
@@ -516,12 +555,12 @@ if any(strcmp(names, 'FOPSO-GWO')) && numel(names) > 1
         out('| %s | %d of %d | %d of %d | %d of %d | %d of %d |\n', o{1}, seed_wins, pairs, ...
             mean_wins, nc, best_wins, nc, equal_wins, nc);
     end
-    others = names(~strcmp(names, 'FOPSO-GWO'));
-    out('\nPer cost, the random seeds on which FOPSO-GWO ends lower than ...\n\n');
+    others = names(~strcmp(names, lead));
+    out('\nPer cost, the random seeds on which %s ends lower than ...\n\n', lead);
     out('| Cost |%s\n|---|%s\n', sprintf(' %s |', others{:}), repmat('---:|', 1, numel(others)));
     for c = costs
         out('| %s |', c{1});
-        A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, 'FOPSO-GWO'));
+        A = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, lead));
         for o = others
             B = runs(strcmp({runs.cost}, c{1}) & strcmp({runs.optimizer}, o{1}));
             [~, a, b] = intersect([A.seed], [B.seed]);
@@ -607,13 +646,22 @@ order = {'V1',  'first settings: c = 1 / 1 / 1, fractional order 0.9 -> 0.4 (Eq.
          'R2',  'L, starting as PSO, grey-wolf share complete at mid-run'
          'S',   'L with half the swarm pulled as in PSO, outside the pack'
          'L',   '**final settings: c = 1.5 / 1.5 / 1, order 0.9**'
+         'H1',  'FOPSO-GWO-CMA: L for 60 %, then CMA-ES from the best, shaped by the elite'
+         'H1I', 'H1 with a round start covariance'
+         'H3',  'H1 with short CMA-ES hunts from three leaders first'
+         'H4',  'H1 with the swarm for 40 %'
+         'H5',  'H3, the swarm cut short before it converges, round start'
+         'H6',  'H3 with the swarm for 40 %'
+         'H7',  'H1 refined joint by joint (5-D CMA-ES blocks)'
+         'H8',  '**FOPSO-GWO-CMA final: H3 with sep-CMA-ES**'
+         'H9',  'H8, refined joint by joint after the hunts'
          'PSO', 'plain PSO'};
-costs = intersect({'paper', 'fbpa'}, unique({dev.cost}));
-costs = fliplr(sort(costs));                   % paper, then fbpa
-out('\n### How the final FOPSO-GWO settings were chosen\n\n');
+costs = {'paper', 'fbpa', 'whole'};
+costs = costs(ismember(costs, unique({dev.cost})));
+out('\n### How the final FOPSO-GWO and FOPSO-GWO-CMA settings were chosen\n\n');
 out('`tools/develop_fopso_gwo.m`: candidate settings on development seeds 101-104, which the\n');
-out('comparison above never uses, run exactly as in it. Mean best cost, its change against PSO\n');
-out('on the same seeds, and the number of seeds on which the candidate beats PSO:\n\n');
+out('comparison above never uses, run exactly as in it. Mean best cost, the change of that mean\n');
+out('against PSO''s over the same seeds, and the number of seeds on which the candidate beats PSO:\n\n');
 out('| Candidate | Settings |');
 for c = costs, out(' %s: mean | vs PSO | seeds won |', c{1}); end
 out('\n|---|---|');
@@ -631,7 +679,7 @@ for i = 1:size(order, 1)
             out(' %.4f | | |', mean([sel.J]));
         else
             out(' %.4f | %+.1f %% | %d of %d |', mean([sel.J]), ...
-                100 * (mean([sel.J]) / mean([ref.J]) - 1), sum([sel(a).J] < [ref(b).J]), numel(a));
+                100 * (mean([sel(a).J]) / mean([ref(b).J]) - 1), sum([sel(a).J] < [ref(b).J]), numel(a));
         end
     end
     out('\n');
@@ -650,6 +698,11 @@ if ~isempty(p_dev) && ~isempty(p_test)
         mean([p_dev.J]), mean([p_test.J]));
 end
 out('\n');
+if any(strcmp({dev.cost}, 'whole'))
+    out('\nFOPSO-GWO-CMA (H1-H9) was developed under `whole`, the cost of the final controller, with\n');
+    out('the rule fixed before its last candidate ran: the lowest mean among the candidates that beat\n');
+    out('PSO on at least 3 of the 4 seeds. That is H8, which beats PSO on all 4.\n');
+end
 end
 
 function J = cost_after(r, budget)

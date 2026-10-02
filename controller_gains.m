@@ -4,7 +4,7 @@ function gains = controller_gains(controller, experiment)
 %   gains = CONTROLLER_GAINS(controller)              one gain set for both experiments
 %   gains = CONTROLLER_GAINS(controller, experiment)  gain set for one experiment
 %     controller  'PID' (lambda = mu = 1), 'FOPID', 'FBPA' (the FBPA-FOPID),
-%                 'PSO' (the PSO-FOPID) or 'FOPSO_GWO'
+%                 'PSO' (the PSO-FOPID), 'FOPSO_GWO' or 'FOPSO_GWO_CMA'
 %     experiment  'step', 'sine', or 'shared' (the default)
 %
 %   Each field is 6x1, one entry per joint.  The paper publishes no gains.
@@ -25,10 +25,11 @@ function gains = controller_gains(controller, experiment)
 %                 closely (docs/audit_report.md, 4.3).  MAIN uses these by
 %                 default.
 %
-%   'FOPSO_GWO'   the FOPID tuned by this work's FO-PSO / grey-wolf hybrid, and
-%   'PSO'         by plain PSO (the paper's improved PSO), both with the same
+%   'FOPSO_GWO'   the FOPID tuned by this work's FO-PSO / grey-wolf hybrid,
+%   'FOPSO_GWO_CMA' by that hybrid with its CMA-ES refinement, and
+%   'PSO'         by plain PSO (the paper's improved PSO), all with the same
 %                 whole-controller cost (TUNE_FOPID_HYBRID), read from
-%                 results/fopso_gwo_gains.mat and results/pso_gains.mat;
+%                 results/<name in lower case>_gains.mat;
 %                 one gain set for both experiments, so EXPERIMENT is ignored.
 %                 (FBPA re-run as an optimiser, TUNE_FOPID_HYBRID with
 %                 Optimizer 'FBPA', writes results/fbpa_gains.mat; that is not
@@ -38,7 +39,7 @@ function gains = controller_gains(controller, experiment)
 %   See also FOPID_CONTROLLER, ROBOT_PARAMS, MAIN, TUNE_FOPID_HYBRID.
 
 if nargin < 2, experiment = 'shared'; end
-if any(strcmpi(controller, {'FOPSO_GWO', 'PSO'}))
+if any(strcmpi(controller, {'FOPSO_GWO', 'FOPSO_GWO_CMA', 'PSO'}))
     file = tuned_file(controller);
     if ~exist(file, 'file')
         error('controller_gains:untuned', 'no tuned gains in %s; run tune_fopid_hybrid first', file);
