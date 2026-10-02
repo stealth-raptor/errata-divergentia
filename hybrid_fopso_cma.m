@@ -32,6 +32,8 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 %                            LeaderShare of the CMA-ES budget; the rest goes
 %                            to a run from the best point any hunt found
 %     LeaderGap      0.05
+%     FullSchedule   false   true: the swarm runs the schedules of the full
+%                            MaxIter and stops at SwarmFraction, unconverged
 %     LeaderShare    0.3
 %
 %   info: cost, history (best cost per block of PopSize evaluations, as the
@@ -44,7 +46,7 @@ if nargin < 3, opts = struct(); end
 d = struct('PopSize', 30, 'MaxIter', 100, 'SwarmFraction', 0.6, 'Elite', 10, ...
            'SigmaMin', 0.003, 'SigmaMax', 0.01, 'Lambda', [], 'Verbose', true, ...
            'RandomSeed', [], 'Leaders', 1, 'LeaderGap', 0.05, 'LeaderShare', 0.3, ...
-           'ShapeFromElite', true);
+           'ShapeFromElite', true, 'FullSchedule', false);
 f = fieldnames(d);
 for i = 1:numel(f)
     if ~isfield(opts, f{i}), opts.(f{i}) = d.(f{i}); end
@@ -56,13 +58,20 @@ K1 = max(1, round(opts.SwarmFraction * opts.MaxIter));
 % ---- 1. FOPSO-GWO -------------------------------------------------------
 o1 = rmfield(opts, intersect(fieldnames(opts), {'SwarmFraction', 'Elite', 'SigmaMin', ...
                                                 'SigmaMax', 'Lambda', 'MaxEvals', 'Leaders', ...
-                                                'LeaderGap', 'LeaderShare', 'ShapeFromElite'}));
-o1.MaxIter = K1;
+                                                'LeaderGap', 'LeaderShare', 'ShapeFromElite', ...
+                                                'FullSchedule'}));
+if opts.FullSchedule
+    o1.StopIter = K1;                          % schedules of a full run, cut short:
+else                                           % the swarm has not yet converged
+    o1.MaxIter = K1;
+end
 if opts.Verbose
     fprintf('FOPSO-GWO-CMA: %d swarm iterations, then CMA-ES for %d evaluations\n', ...
             K1, budget - N * (K1 + 1));
 end
 [g, s1] = hybrid_fopso_gwo(cost, nvar, o1);
+s1.history = s1.history(1:K1);
+s1.mean_history = s1.mean_history(1:K1);
 
 % ---- 2. CMA-ES around the pack's leaders ---------------------------------
 rem = budget - s1.evaluations;

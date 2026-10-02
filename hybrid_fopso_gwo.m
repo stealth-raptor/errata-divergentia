@@ -87,6 +87,8 @@ function [z_best, info] = hybrid_fopso_gwo(cost, nvar, opts)
 %                              coefficient grows from 0 to c3 while c1 and c2
 %                              shrink from c1 + c3/2 and c2 + c3/2, keeping
 %                              the sum of the three (0: off)
+%     StopIter     Inf         stop after this iteration, the schedules still
+%                              running to MaxIter (for HYBRID_FOPSO_CMA)
 %     explorers    0           fraction of the swarm (every 1/explorers-th
 %                              particle) that leaves the pack: their c1 and c2
 %                              take c3/2 each and their c3 is 0, i.e. plain PSO
@@ -155,7 +157,7 @@ if m_exp > 0, ex(round((1:m_exp) * N / m_exp)) = true; end
 
 t_start = tic;
 t_iter  = [];                        % durations of the iterations of this call
-for k = st.k + 1 : opts.MaxIter
+for k = st.k + 1 : min(opts.MaxIter, opts.StopIter)
     t_k = tic;
     tau = k / opts.MaxIter;
     w   = opts.wmax - (opts.wmax - opts.wmin) * tau;
@@ -324,7 +326,7 @@ end
 function opts = set_defaults(opts, nvar)
 d = struct('PopSize', 30, 'MaxIter', 100, 'c1', 1.5, 'c2', 1.5, 'c3', 1, 'gwo_power', 2, ...
            'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'alpha_drop', 0, 'alpha_hold', 0, ...
-           'c3_ramp', false, 'pack_ramp', 0, 'explorers', 0, ...
+           'c3_ramp', false, 'pack_ramp', 0, 'explorers', 0, 'StopIter', Inf, ...
            'vmax', 0.2, 'Seeds', zeros(0, nvar), 'SeedFraction', 0.3, ...
            'SeedJitter', 0.05, 'UseParallel', false, 'Checkpoint', '', ...
            'Resume', false, 'CheckpointTag', [], 'RandomSeed', [], 'Verbose', true);
