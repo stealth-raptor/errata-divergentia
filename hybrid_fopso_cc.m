@@ -26,7 +26,8 @@ function [z_best, info] = hybrid_fopso_cc(cost, nvar, opts)
 %
 %   Options (besides those of HYBRID_FOPSO_GWO, used for the swarm and the
 %   sub-swarms alike):
-%     SwarmFraction  0.5   share of the iterations given to the full swarm
+%     SwarmFraction  0.3   share of the iterations given to the full swarm
+%                          (chosen on development seeds: TOOLS/DEVELOP_FOPSO_GWO, C2)
 %
 %   info: cost, history, mean_history, evaluations, options, swarm (the
 %   FOPSO-GWO info), switch_eval.
@@ -34,7 +35,7 @@ function [z_best, info] = hybrid_fopso_cc(cost, nvar, opts)
 %   See also HYBRID_FOPSO_GWO, HYBRID_FOPSO_CMA, PSO.
 
 if nargin < 3, opts = struct(); end
-d = struct('PopSize', 30, 'MaxIter', 100, 'SwarmFraction', 0.5, 'Verbose', true, ...
+d = struct('PopSize', 30, 'MaxIter', 100, 'SwarmFraction', 0.3, 'Verbose', true, ...
            'RandomSeed', [], 'c1', 1.5, 'c2', 1.5, 'c3', 1, 'gwo_power', 2, ...
            'wmin', 0.4, 'wmax', 0.9, 'alpha0', 0.9, 'vmax', 0.2);
 f = fieldnames(d);
