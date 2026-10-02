@@ -34,6 +34,12 @@ function [z_best, info] = hybrid_fopso_cma(cost, nvar, opts)
 %     LeaderGap      0.05
 %     FullSchedule   false   true: the swarm runs the schedules of the full
 %                            MaxIter and stops at SwarmFraction, unconverged
+%     Diagonal       false   true: the CMA-ES runs are sep-CMA-ES (CMAES)
+%     Local          'cma'   'block': instead of CMA-ES in all 30 dimensions, a
+%                            sweep over the joints, each a short CMA-ES in that
+%                            joint's 5 gains (BlockGens generations per visit;
+%                            step and shape kept from one sweep to the next)
+%     BlockGens      4
 %     LeaderShare    0.3
 %
 %   info: cost, history (best cost per block of PopSize evaluations, as the
@@ -46,7 +52,8 @@ if nargin < 3, opts = struct(); end
 d = struct('PopSize', 30, 'MaxIter', 100, 'SwarmFraction', 0.6, 'Elite', 10, ...
            'SigmaMin', 0.003, 'SigmaMax', 0.01, 'Lambda', [], 'Verbose', true, ...
            'RandomSeed', [], 'Leaders', 1, 'LeaderGap', 0.05, 'LeaderShare', 0.3, ...
-           'ShapeFromElite', true, 'FullSchedule', false);
+           'ShapeFromElite', true, 'FullSchedule', false, 'Diagonal', false, ...
+           'Local', 'cma', 'BlockGens', 4);
 f = fieldnames(d);
 for i = 1:numel(f)
     if ~isfield(opts, f{i}), opts.(f{i}) = d.(f{i}); end
@@ -59,7 +66,7 @@ K1 = max(1, round(opts.SwarmFraction * opts.MaxIter));
 o1 = rmfield(opts, intersect(fieldnames(opts), {'SwarmFraction', 'Elite', 'SigmaMin', ...
                                                 'SigmaMax', 'Lambda', 'MaxEvals', 'Leaders', ...
                                                 'LeaderGap', 'LeaderShare', 'ShapeFromElite', ...
-                                                'FullSchedule'}));
+                                                'FullSchedule', 'Diagonal', 'Local', 'BlockGens'}));
 if opts.FullSchedule
     o1.StopIter = K1;                          % schedules of a full run, cut short:
 else                                           % the swarm has not yet converged
@@ -86,7 +93,14 @@ for k = 2:numel(order)
     end
 end
 runs = {};  F_all = [];
-if numel(lead) > 1
+if strcmpi(opts.Local, 'block')
+    if opts.Verbose
+        fprintf('Joint-block CMA-ES from the swarm''s best (cost %.6g), %d evaluations\n', s1.cost, rem);
+    end
+    [zb, Jb, F_all] = block_search(cost, g, s1.cost, rem, nvar, opts);
+    runs{1} = struct('cost', Jb, 'best_z', zb);
+    lead = 1;
+elseif numel(lead) > 1
     % a short hunt from each leader, then the rest of the budget on the best
     b = floor(opts.LeaderShare * rem / numel(lead));
     best_J = Inf;
@@ -102,7 +116,7 @@ if numel(lead) > 1
     end
     o2 = struct('MaxEvals', rem - numel(F_all), 'PopSize', N, 'Mean0', z_lead, ...
                 'Sigma0', min(max(sig, opts.SigmaMin), opts.SigmaMax), ...
-                'Verbose', opts.Verbose, 'PrintEvery', 10);
+                'Verbose', opts.Verbose, 'PrintEvery', 10, 'Diagonal', opts.Diagonal);
     if ~isempty(opts.Lambda), o2.Lambda = opts.Lambda; end
     if opts.Verbose
         fprintf('CMA-ES continues from the best hunt (cost %.6g)\n', best_J);
@@ -113,8 +127,10 @@ else
         fprintf('CMA-ES from the swarm''s best (cost %.6g), sigma0 %.3g\n', s1.cost, o2.Sigma0);
     end
 end
-[~, s] = cmaes(cost, nvar, o2);
-runs{end+1} = s;  F_all = [F_all; s.F_all];
+if ~strcmpi(opts.Local, 'block')
+    [~, s] = cmaes(cost, nvar, o2);
+    runs{end+1} = s;  F_all = [F_all; s.F_all];
+end
 
 % ---- the best point of all, and one history ------------------------------
 z_best = g;  J = s1.cost;
@@ -142,7 +158,8 @@ function o2 = cma_start(P, pf, k, opts, nvar, N, evals)
 %CMA_START  CMA-ES options for a run from personal best k: covariance from
 %   the elite around it (if ShapeFromElite), step from their spread, clipped.
 o2 = struct('MaxEvals', evals, 'PopSize', N, 'Mean0', P(k, :), ...
-            'Sigma0', opts.SigmaMax, 'Verbose', opts.Verbose, 'PrintEvery', 10);
+            'Sigma0', opts.SigmaMax, 'Verbose', opts.Verbose, 'PrintEvery', 10, ...
+            'Diagonal', opts.Diagonal);
 if ~isempty(opts.Lambda), o2.Lambda = opts.Lambda; end
 E = P(1:min(opts.Elite, end), :);
 E = E(pf(1:size(E, 1)) < 1e3, :);              % only stable controllers
@@ -158,4 +175,44 @@ end
 function m = mean_stable(F)
 F = F(F < 1e11);
 if isempty(F), m = NaN; else, m = mean(F); end
+end
+
+% ------------------------------------------------------------------------
+function [x, J, F_all] = block_search(cost, x, J, evals, nvar, opts)
+%BLOCK_SEARCH  Sweeps over the joints: a short CMA-ES in one joint's five
+%   parameters at a time (Kp, Ki, Kd, lambda, mu of that joint), the others
+%   held, with each block's step size and covariance carried over to its
+%   next visit.  The controller of a joint mostly shapes that joint's own
+%   response, so the 30-dimensional search is nearly separable by joint, and
+%   a 5-dimensional CMA-ES learns its shape within a few generations.
+nj = nvar / 5;
+blocks = arrayfun(@(j) j + nj * (0:4), 1:nj, 'UniformOutput', false);
+sig = repmat(opts.SigmaMax, 1, nj);
+C = repmat({eye(5)}, 1, nj);
+lam = 4 + floor(3 * log(5));
+F_all = [];
+j = 0;
+while numel(F_all) < evals
+    j = mod(j, nj) + 1;
+    idx = blocks{j};
+    n_run = min(opts.BlockGens * lam, evals - numel(F_all));
+    sub = @(y) cost(put(x, idx, y));
+    o = struct('MaxEvals', n_run, 'PopSize', lam, 'Lambda', lam, 'Mean0', x(idx), ...
+               'Sigma0', sig(j), 'C0', C{j}, 'Verbose', false);
+    [y, s] = cmaes(sub, 5, o);
+    F_all = [F_all; s.F_all]; %#ok<AGROW>
+    if s.cost < J
+        J = s.cost;
+        x(idx) = y;
+    end
+    sig(j) = min(max(s.sigma, opts.SigmaMin / 3), opts.SigmaMax);
+    C{j} = s.C;
+    if opts.Verbose && j == nj
+        fprintf('  block sweep done: %d/%d evaluations, best %.6g\n', numel(F_all), evals, J);
+    end
+end
+end
+
+function x = put(x, idx, y)
+x(idx) = min(max(y, 0), 1);
 end

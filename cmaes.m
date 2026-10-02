@@ -13,6 +13,7 @@ function [z_best, info] = cmaes(cost, nvar, opts)
 %       C0          nvar x nvar initial covariance, scaled so its largest
 %                   eigenvalue is 1 (default eye)
 %       Seeds       as for the swarm optimisers; the first row is the start
+%       Diagonal    true: sep-CMA-ES, a diagonal covariance learnt faster
 %       RandomSeed, Verbose
 %   (PopSize, MaxIter, Checkpoint, Resume, CheckpointTag, UseParallel and the
 %   swarm optimisers' other options are accepted and ignored, except for the
@@ -99,6 +100,11 @@ st.cc = (4 + st.mueff / n) / (n + 4 + 2 * st.mueff / n);
 st.cs = (st.mueff + 2) / (n + st.mueff + 5);
 st.c1 = 2 / ((n + 1.3)^2 + st.mueff);
 st.cmu = min(1 - st.c1, 2 * (st.mueff - 2 + 1 / st.mueff) / ((n + 2)^2 + st.mueff));
+st.diagonal = opts.Diagonal;
+if st.diagonal                    % sep-CMA-ES (Ros & Hansen 2008): learns n variances,
+    st.c1 = min(1, st.c1 * (n + 2) / 3);                    % not n^2/2 covariances,
+    st.cmu = min(1 - st.c1, st.cmu * (n + 2) / 3);          % so it can learn faster
+end
 st.damps = 1 + 2 * max(0, sqrt((st.mueff - 1) / (n + 1)) - 1) + st.cs;
 st.chiN = sqrt(n) * (1 - 1 / (4 * n) + 1 / (21 * n^2));
 st.mean = opts.Mean0(:)';
@@ -106,8 +112,10 @@ st.sigma = opts.Sigma0;
 C = opts.C0;
 C = (C + C') / 2;
 C = C / max(eig(C));
+if st.diagonal, C = diag(diag(C)) / max(diag(C)); end
 st.C = C;
 [B, D] = eig(C);
+if st.diagonal, B = eye(n); D = C; end
 st.B = B;  st.D = sqrt(max(diag(D), 1e-20));
 st.pc = zeros(1, n);  st.ps = zeros(1, n);
 st.gen = 0;
@@ -140,7 +148,10 @@ st.C = (1 - st.c1 - st.cmu) * st.C ...
        + st.cmu * (Yk' * diag(st.w) * Yk);
 st.sigma = st.sigma * exp((st.cs / st.damps) * (norm(st.ps) / st.chiN - 1));
 st.sigma = min(st.sigma, 0.5);                  % never wider than the box
-if st.gen - st.eigen_gen > st.lambda / (st.c1 + st.cmu) / n / 10
+if st.diagonal
+    st.C = diag(diag(st.C));
+    st.B = eye(n);  st.D = sqrt(max(diag(st.C), 1e-20));
+elseif st.gen - st.eigen_gen > st.lambda / (st.c1 + st.cmu) / n / 10
     st.eigen_gen = st.gen;
     st.C = triu(st.C) + triu(st.C, 1)';
     [B, D] = eig(st.C);
@@ -152,6 +163,7 @@ end
 function opts = set_defaults(opts, nvar)
 d = struct('PopSize', 30, 'MaxIter', 100, 'MaxEvals', [], 'Lambda', 4 + floor(3 * log(nvar)), ...
            'Sigma0', 0.2, 'Mean0', [], 'C0', eye(nvar), 'Seeds', [], 'BoxPenalty', 1, ...
+           'Diagonal', false, ...
            'RandomSeed', [], 'Verbose', true, 'PrintEvery', 10);
 f = fieldnames(d);
 for i = 1:numel(f)
