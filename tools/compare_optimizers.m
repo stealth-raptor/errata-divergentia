@@ -4,7 +4,8 @@ function compare_optimizers(seeds, optimizers, costs)
 %   COMPARE_OPTIMIZERS()                       seeds 1-4, all optimisers, all costs
 %   COMPARE_OPTIMIZERS(seeds, optimizers, costs)
 %     seeds       random seeds, e.g. 1:4
-%     optimizers  cell of 'PSO', 'FBPA', 'FOPSO-GWO'
+%     optimizers  cell of 'PSO', 'FBPA', 'FOPSO-GWO', 'FOPSO-GWO-CMA', 'FOPSO-GWO-CC'
+%                 (default the first three)
 %     costs       cell of
 %                   'paper'     the paper's fitness: step ITAE (Eq. 29)
 %                   'fbpa'      this work's cost: ITAE of both experiments and
