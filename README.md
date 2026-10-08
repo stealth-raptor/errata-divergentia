@@ -1,4 +1,4 @@
-# Improved FOPID tuning for a 6-DOF robotic arm: reproduction, audit and FOPSO-GWO-CC
+﻿# Improved FOPID tuning for a 6-DOF robotic arm: reproduction, audit and FOPSO-GWO-CC
 
 **Branch `escape-orbit`: the MATLAB version of the work, for review.**
 
@@ -21,28 +21,26 @@ Base paper:
 >   every number.
 >
 > **Not yet run in MATLAB:** `build_mex` and `check_mex` (no C compiler was installed on the
-> test machine), and any optimiser re-run. Sect. 11 gives the commands and what each should
+> test machine), and any optimiser re-run. Sect. 2 gives the commands and what each should
 > print. New optimiser runs will differ seed by seed from the stored ones, because MATLAB
 > draws different random numbers for the same seed.
 
 ## Contents
 
 1. [Summary for the decision](#1-summary-for-the-decision)
-2. [The base paper and the problem](#2-the-base-paper-and-the-problem)
-3. [What was implemented](#3-what-was-implemented)
-4. [Design decisions](#4-design-decisions)
-5. [Comparison with the base paper](#5-comparison-with-the-base-paper)
-6. [The proposed controller: FOPSO-GWO-CC against the baselines](#6-the-proposed-controller-fopso-gwo-cc-against-the-baselines)
-7. [The optimisers compared under identical conditions](#7-the-optimisers-compared-under-identical-conditions)
-8. [What was tried and did not work](#8-what-was-tried-and-did-not-work)
-9. [Problems found in the base paper](#9-problems-found-in-the-base-paper)
-10. [Limitations](#10-limitations)
-11. [Running it in MATLAB](#11-running-it-in-matlab)
-12. [Scope options for the next phase](#12-scope-options-for-the-next-phase)
-13. [Where everything is](#13-where-everything-is)
+2. [Running it in MATLAB](#2-running-it-in-matlab)
+3. [The base paper and the problem](#3-the-base-paper-and-the-problem)
+4. [What was implemented](#4-what-was-implemented)
+5. [Design decisions](#5-design-decisions)
+6. [Comparison with the base paper](#6-comparison-with-the-base-paper)
+7. [The proposed controller: FOPSO-GWO-CC against the baselines](#7-the-proposed-controller-fopso-gwo-cc-against-the-baselines)
+8. [The optimisers compared under identical conditions](#8-the-optimisers-compared-under-identical-conditions)
+9. [What was tried and did not work](#9-what-was-tried-and-did-not-work)
+10. [Problems found in the base paper](#10-problems-found-in-the-base-paper)
+11. [Limitations](#11-limitations)
+12. [Where everything is](#12-where-everything-is)
 
 ---
-
 ## 1. Summary for the decision
 
 **What was done**
@@ -53,12 +51,12 @@ Base paper:
    and FBPA-FOPID were **identified from the paper's own curves**, which were read exactly
    from the PDF's vector graphics. The reproduction keeps the paper's ranking
    (PID worse than FOPID worse than FBPA-FOPID) on all five metrics. It follows the
-   published curves to 0.03–0.09 rad rms, averaged over the joints (Sect. 5).
+   published curves to 0.03–0.09 rad rms, averaged over the joints (Sect. 6).
 2. **Audited the paper.** Some of its results cannot be reproduced by anyone, because the
    paper contradicts itself:
    * its joint-1 step and sine curves are physically incompatible;
    * its torque figures are numerical artefacts;
-   * its torque table is a reordering of its own figure (Sect. 9, `docs/audit_report.md`).
+   * its torque table is a reordering of its own figure (Sect. 10, `docs/audit_report.md`).
 3. **Proposed a new tuning method, FOPSO-GWO-CC.** It is a fractional-order PSO / grey-wolf
    hybrid (FOPSO-GWO) followed by cooperative coevolution with one sub-swarm per joint. It
    tunes the FOPID as a whole controller: the best tracking it can get while staying, on
@@ -75,7 +73,7 @@ joints; lower is better.
 | **FOPSO-GWO-CC (proposed)** | **11.0** | **1.24** | **1.09** | **1.62e-3** | **9609** |
 
 ¹ This value cannot be compared: the paper's torque values are not physically consistent
-(Sect. 9).
+(Sect. 10).
 
 * **Against the paper's own FBPA-FOPID table**, FOPSO-GWO-CC is better on 4 of the 5 metrics
   and equal on peak time (1.090 s against 1.09 s). Overshoot is 50 % lower, adjustment time
@@ -102,22 +100,107 @@ joints; lower is better.
     evaluations.
 * **The torque gain is small (−5 %) because both controllers are close to the physical
   minimum.** Tracking the sine perfectly takes 7395 Nm (computed by inverse dynamics).
-  PSO-FOPID uses 1.013e4 Nm and FOPSO-GWO-CC 9609 Nm (Sect. 6.3).
+  PSO-FOPID uses 1.013e4 Nm and FOPSO-GWO-CC 9609 Nm (Sect. 7.3).
 
 **Main caveats**
 
 * The compiled simulation and the optimiser re-runs have not yet been run in MATLAB
-  (Sect. 11).
+  (Sect. 2).
 * Each optimiser was run on 8 seeds and one plant. That is enough for the main claim but not
   for the small differences.
 * The plant follows the paper's assumptions: no gravity, no friction, nominal parameters.
-  Robustness has not been tested yet (Sect. 10).
+  Robustness has not been tested yet (Sect. 11).
 
-The decisions this review needs are in Sect. 12.
 
 ---
 
-## 2. The base paper and the problem
+## 2. Running it in MATLAB
+
+**Requirements:** MATLAB R2018a or newer (R2016b is the minimum), no toolboxes, and Git.
+
+```
+git clone --branch escape-orbit https://github.com/stealth-raptor/errata-divergentia.git
+cd errata-divergentia
+```
+
+Start MATLAB in that folder (the one containing `main.m`), then run:
+
+```matlab
+addpath tools
+verify_dynamics     % prints: robot_dynamics: all checks passed
+main                % every controller from the stored gains, about 2 minutes -> results/
+```
+
+Or, without the desktop (R2019a or newer), from a terminal in that folder:
+
+```
+matlab -batch "addpath tools; verify_dynamics; main"
+```
+
+`main` rewrites `results/summary.md`, the figures (`results/*.png`) and
+`results/simulation_results.mat`. To restore the stored versions, run `git checkout -- results`.
+
+**Check that it worked.** The simulation is deterministic and loads the stored gains, so after
+`main` the command `git diff results/summary.md` should show no changed number (at most the
+sentence naming the platform). The PNG files are re-rendered and will show as changed.
+
+### Optional: the compiled simulation (MEX)
+
+The `.m` simulation gives the same results, so MEX is not needed to run the steps above. It is
+needed only to re-run optimisers (next subsection), which are impractically slow without it. It
+needs a C compiler: on Windows install the free *MATLAB Support for MinGW-w64 C/C++ Compiler*
+add-on (Home → Add-Ons); Linux needs gcc and macOS the Xcode command line tools. Then:
+
+```matlab
+mex -setup C        % once per machine
+build_mex           % compiles simulate_mex.c -> simulate_mex.<mexext>
+check_mex           % compiled simulation == .m simulation (slow); prints: check_mex: simulate_mex and the .m loop agree
+```
+
+### Re-running an optimiser (needs the MEX)
+
+```matlab
+% FOPSO-GWO-CC, whole-controller cost, random seed 7 (about 6 minutes)
+tune_fopid_hybrid(struct('Optimizer', 'FOPSO-GWO-CC', 'Fitness', 'whole', 'RandomSeed', 7, ...
+                         'OutFile', fullfile('results', 'matlab_fopso_gwo_cc_seed7.mat')))
+```
+
+* **Use a separate `OutFile`.** By default the tuner writes `results/<optimizer>_gains.mat`,
+  replacing the stored controller that `main` reports (the old file is kept as `_prev.mat`).
+* **It will not reproduce the stored seed-7 controller.** The stored runs used a different random
+  number generator, so a MATLAB run is a new, independent sample.
+* **The claim to re-verify is statistical:** FOPSO-GWO-CC should beat PSO on most or all seeds
+  under the whole-controller cost (about 16 runs × 6 min, written to a new folder):
+
+```matlab
+compare_weighted(1:8, {'PSO', 'FOPSO-GWO-CC'}, [1 1 1 1], 'matlab_runs')   % [1 1 1 1] = the 'whole' cost
+for s = 1:8
+    p = load(fullfile('results', 'matlab_runs', sprintf('pso_whole_seed%d.mat', s)), 'cost');
+    c = load(fullfile('results', 'matlab_runs', sprintf('fopso_gwo_cc_whole_seed%d.mat', s)), 'cost');
+    fprintf('seed %d   PSO %.3f   FOPSO-GWO-CC %.3f\n', s, p.cost, c.cost);
+end
+```
+
+To use several cores, start one MATLAB per seed, e.g.
+`matlab -batch "addpath tools; compare_weighted(3, {'PSO','FOPSO-GWO-CC'}, [1 1 1 1], 'matlab_runs')"`,
+or pass `'UseParallel', true` to `tune_fopid_hybrid` (needs the Parallel Computing Toolbox).
+
+### Other entry points
+
+```matlab
+main('shared')      % one gain set per paper controller -> results/shared_gains/
+tune_fopid_hybrid(struct('Optimizer', 'FBPA', 'RandomSeed', 1, ...
+                         'OutFile', fullfile('results', 'matlab_fbpa_seed1.mat')))   % the paper's FBPA, ~15 min
+```
+
+The scripts in `tools/` (`compare_optimizers`, `develop_fopso_gwo`, `ablate_optimizers`,
+`compare_weighted`) skip any run whose result file already exists, so with their stored folders
+they do nothing. To repeat runs, use a new folder as above, or move the stored files aside.
+
+---
+
+
+## 3. The base paper and the problem
 
 The paper controls a UR5-type 6-DOF arm with six independent FOPID controllers:
 
@@ -138,11 +221,11 @@ Every metric is averaged over the six joints, and the curves are shown in Figs 6
 
 The paper does **not** publish the controller gains, the solver, the settings of the
 fractional operator, the centre-of-mass positions, the settling band or the friction
-coefficients. The reproduction therefore had to identify or choose each of these (Sect. 4).
+coefficients. The reproduction therefore had to identify or choose each of these (Sect. 5).
 
 ---
 
-## 3. What was implemented
+## 4. What was implemented
 
 ```
 main.m                      runs every controller through both experiments -> results/ (tables, figures)
@@ -164,10 +247,10 @@ main.m                      runs every controller through both experiments -> re
 └── plot_convergence.m      optimiser convergence
 
 tune_fopid_hybrid.m         tunes all 30 FOPID parameters -> results/<optimizer>_gains.mat
-├── fopid_fitness.m         the costs: paper (ITAE), fbpa, fbpa_all, whole (Sect. 4, D7)
+├── fopid_fitness.m         the costs: paper (ITAE), fbpa, fbpa_all, whole (Sect. 5, D7)
 ├── hybrid_fopso_cc.m       FOPSO-GWO-CC: FOPSO-GWO + cooperative coevolution by joint (proposed)
 ├── hybrid_fopso_gwo.m      FOPSO-GWO: fractional-order PSO with grey-wolf leaders
-├── hybrid_fopso_cma.m      FOPSO-GWO + CMA-ES (tried; a negative result, Sect. 8)
+├── hybrid_fopso_cma.m      FOPSO-GWO + CMA-ES (tried; a negative result, Sect. 9)
 ├── cmaes.m                 CMA-ES / sep-CMA-ES on the unit box
 ├── fbpa.m                  the paper's FBPA (its Sect. 3, with its Sect. 4 settings)
 └── pso.m                   plain PSO: the paper's "improved PSO" (Eqs. 23-24), the baseline
@@ -205,7 +288,7 @@ switched on, and it changes the run time, not the results.
 
 ---
 
-## 4. Design decisions
+## 5. Design decisions
 
 Each decision gives what was chosen, why, and the evidence for it.
 
@@ -426,7 +509,7 @@ seeds.
 
 ---
 
-## 5. Comparison with the base paper
+## 6. Comparison with the base paper
 
 ### 5.1 The paper's Tables 3 and 4 against this work
 
@@ -445,14 +528,14 @@ seeds.
 * **The ranking is reproduced.** PID is worse than FOPID, and FOPID worse than FBPA-FOPID, on
   all five metrics.
 * **Most differences from the paper's table are within the paper's own disagreements.** The
-  table does not match the paper's figures (Sect. 5.2). For example, the FBPA-FOPID peak time
+  table does not match the paper's figures (Sect. 6.2). For example, the FBPA-FOPID peak time
   is 1.09 s in the table, 1.26 s in the paper's own curves and 1.25 s in the reproduction,
   which follows the curves.
 * **The largest gap is PID's adjustment time** (2.98 against 2.44 s). It comes mostly from
   joint 1 (3.84 s, against 2.12 s in the paper's curves). Joint 1 is where the paper's step
-  and sine curves contradict each other (Sect. 9).
+  and sine curves contradict each other (Sect. 10).
 * **The torque column cannot be reproduced.** This work's values (about 1e4 Nm) are
-  physically consistent. The paper's values are a reordering of its own figure (Sect. 9).
+  physically consistent. The paper's values are a reordering of its own figure (Sect. 10).
 
 ### 5.2 The paper's tables against its own figures
 
@@ -468,7 +551,7 @@ The same metrics, recomputed from the paper's published curves:
 | FBPA-FOPID | Figures | 21.2 | 1.52 | 1.26 | 3.68e-3 | 2.568e4 |
 
 The MSE agrees to 1 %. The torque values match, but assigned to different controllers
-(Sect. 9). The step times differ by up to 0.17 s, and the overshoots by up to 4.5 points.
+(Sect. 10). The step times differ by up to 0.17 s, and the overshoots by up to 4.5 points.
 
 ### 5.3 Match to the published curves
 
@@ -494,7 +577,7 @@ averaged table values.
 
 ---
 
-## 6. The proposed controller: FOPSO-GWO-CC against the baselines
+## 7. The proposed controller: FOPSO-GWO-CC against the baselines
 
 ### 6.1 The paper's metrics
 
@@ -587,7 +670,7 @@ The kick is the first 50 ms after the step.
 
 ---
 
-## 7. The optimisers compared under identical conditions
+## 8. The optimisers compared under identical conditions
 
 `tools/compare_optimizers.m` runs every optimiser under four costs, with the protocol of D9:
 
@@ -659,7 +742,7 @@ Head to head, the seeds on which the first optimiser ends lower (same cost and s
 
 ---
 
-## 8. What was tried and did not work
+## 9. What was tried and did not work
 
 These negative results are kept in the repository with their numbers.
 
@@ -688,7 +771,7 @@ These negative results are kept in the repository with their numbers.
 
 ---
 
-## 9. Problems found in the base paper
+## 10. Problems found in the base paper
 
 The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
 
@@ -702,7 +785,7 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
 3. **Table 4's torque column is a permutation of Fig. 19** (audit 3.3). The curves labelled
    PID / FOPID / FBPA-FOPID sum to 2.3153e4 / 3.7412e4 / 2.5675e4. These are the table's
    values for FBPA / PID / FOPID.
-4. **The tables disagree with the figures** (Sect. 5.2). For example, the FBPA-FOPID peak
+4. **The tables disagree with the figures** (Sect. 6.2). For example, the FBPA-FOPID peak
    time is 1.09 s in the table and 1.26 s in the curves.
 5. **Eq. 23 prints the inertia weight as increasing**, (wmax − wmin)·k/MaxIter, while the
    text says it decreases linearly. The decreasing form is used here.
@@ -712,10 +795,10 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
 
 ---
 
-## 10. Limitations
+## 11. Limitations
 
 * **The compiled simulation and the optimiser re-runs have not yet been run in MATLAB.**
-  See Sect. 11 for the checks.
+  See Sect. 2 for the checks.
 * **Statistics.** Each optimiser ran on 8 seeds per cost. That is enough for the main claim
   (8 of 8 under `whole`, p = 0.004). It is not enough for the small differences: under the
   paper's fitness the seed-to-seed spread is as large as the gap between the optimisers. A
@@ -727,7 +810,7 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
   parameters. Robustness to model error, noise or other trajectories has not been tested.
 * **The cost is this work's own design.** The proposed controller is tuned with the
   whole-controller cost (D7), not with the paper's fitness. Under the paper's fitness,
-  FOPSO-GWO-CC is only level with PSO (Sect. 7).
+  FOPSO-GWO-CC is only level with PSO (Sect. 8).
 * **The identified gains of the paper's controllers are not unique.** They show the curves
   are attainable, not that they are the authors' gains.
 * **Two conventions for times.** The paper measures adjustment and peak times from t = 0 and
@@ -736,171 +819,7 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
 
 ---
 
-## 11. Running it in MATLAB
-
-### Requirements
-
-* **MATLAB R2018a or newer** is recommended. R2016b is the minimum: the code relies on
-  implicit expansion. No toolboxes are needed.
-* **A C compiler for MEX**, set up once with `mex -setup C`:
-
-  | Platform | Compiler |
-  |---|---|
-  | Windows | the free MinGW-w64 add-on (Home → Add-Ons), or Microsoft Visual C++ |
-  | Linux | gcc |
-  | macOS | Xcode command line tools |
-
-  A fresh Windows machine has no supported compiler, and `mex -setup C` then fails with
-  "Supported compiler not detected". Install the free **MATLAB Support for MinGW-w64 C/C++
-  Compiler** (Home → Add-Ons → Get Add-Ons, or
-  <https://www.mathworks.com/matlabcentral/fileexchange/52848>) and run `mex -setup C` again.
-  Without a compiler everything still runs on the `.m` simulation, with the same results:
-  `main` takes about 2 minutes instead of seconds, and tuning is impractically slow, so
-  re-running optimisers needs the compiler.
-* **Git**, to clone the repository (or download the `escape-orbit` branch as a zip, in which
-  case the `git diff` check below is not available).
-* **Disk:** the repository is about 10 MB, mostly the stored runs in `results/`.
-
-### Get the code
-
-```
-git clone --branch escape-orbit https://github.com/stealth-raptor/errata-divergentia.git
-cd errata-divergentia
-```
-
-### Steps (from the repository root)
-
-Start MATLAB in the repository root (the folder containing `main.m`), then:
-
-```matlab
-mex -setup C                 % once per machine: pick the C compiler (skip if none is installed)
-build_mex                    % compiles simulate_mex.c -> simulate_mex.<mexext> (skip if none)
-addpath tools
-
-verify_dynamics              % dynamics checks
-check_mex                    % compiled simulation == .m simulation (slow: runs the .m loop; needs the MEX)
-main                         % every controller from the stored gains -> results/
-```
-
-The same without opening the MATLAB desktop (R2019a or newer), from a terminal in the
-repository root:
-
-```
-matlab -batch "addpath tools; verify_dynamics; main"
-```
-
-**`main` overwrites** `results/summary.md`, the figures (`results/*.png`) and
-`results/simulation_results.mat`. To get the stored versions back, run
-`git checkout -- results`.
-
-### What each step should show
-
-| Step | Expected output |
-|---|---|
-| `verify_dynamics` | `robot_dynamics: all checks passed`. It asserts \|M − M_jacobian\| < 1e-12, M positive definite and energy drift < 1e-8; the typical values are about 1e-15 and 1e-14. |
-| `check_mex` | `check_mex: simulate_mex and the .m loop agree`. It asserts max \|Δq\| < 1e-8 rad and a relative torque difference < 1e-4. |
-| `main` | Prints `Simulating 6 controllers x 2 experiments`, one `done` line per controller, then `Saved results/summary.md ...`. Takes about 2 minutes on the `.m` simulation, seconds with the MEX. |
-
-**The decisive check comes after `main`** (in a git clone, from a terminal):
-
-```
-git diff results/summary.md
-```
-
-The simulation is deterministic, and every controller is loaded from the stored gains. If
-the setup is faithful, `summary.md` is identical to the stored one, or differs only in the
-sentence naming the platform, and in no number. The PNG files are re-rendered, so they will
-show as changed. Without git, compare `results/summary.md` with the tables in this README.
-
-A difference in the last printed digit of a number would come from floating-point
-differences between platforms; the controllers are numerically well-conditioned (D7, D13),
-so this is unlikely. Anything larger would be a porting error.
-
-### Re-running an optimiser
-
-```matlab
-% FOPSO-GWO-CC, whole-controller cost, random seed 7 (about 6 minutes with the MEX)
-tune_fopid_hybrid(struct('Optimizer', 'FOPSO-GWO-CC', 'Fitness', 'whole', 'RandomSeed', 7, ...
-                         'OutFile', fullfile('results', 'matlab_fopso_gwo_cc_seed7.mat')))
-```
-
-* **Use a separate `OutFile`.** By default the tuner writes `results/<optimizer>_gains.mat`,
-  replacing the stored controller that `main` reports. The old file is kept as `_prev.mat`.
-* **This will not reproduce the stored seed-7 controller.** The stored runs were generated
-  with a different random number generator, so the same seed gives a different stream in
-  MATLAB. A MATLAB run is therefore a new, independent sample.
-* **The claim to re-verify is statistical**: FOPSO-GWO-CC should beat PSO on most or all
-  seeds under the whole-controller cost. To test it in MATLAB, write to a new folder; the
-  stored runs are skipped if the file names match. With the MEX, this takes about 16 runs ×
-  6 min:
-
-```matlab
-compare_weighted(1:8, {'PSO', 'FOPSO-GWO-CC'}, [1 1 1 1], 'matlab_runs')   % [1 1 1 1] = the 'whole' cost
-for s = 1:8
-    p = load(fullfile('results', 'matlab_runs', sprintf('pso_whole_seed%d.mat', s)), 'cost');
-    c = load(fullfile('results', 'matlab_runs', sprintf('fopso_gwo_cc_whole_seed%d.mat', s)), 'cost');
-    fprintf('seed %d   PSO %.3f   FOPSO-GWO-CC %.3f\n', s, p.cost, c.cost);
-end
-```
-
-To use several cores, start one MATLAB per seed (`-batch` needs R2019a or newer):
-`matlab -batch "addpath tools; compare_weighted(3, {'PSO','FOPSO-GWO-CC'}, [1 1 1 1], 'matlab_runs')"`.
-Alternatively, pass `'UseParallel', true` to `tune_fopid_hybrid`, which needs the Parallel
-Computing Toolbox.
-
-### Other entry points
-
-```matlab
-main('shared')                                          % one gain set per paper controller -> results/shared_gains/
-tune_fopid_hybrid(struct('Optimizer', 'FBPA', 'RandomSeed', 1, ...
-                         'OutFile', fullfile('results', 'matlab_fbpa_seed1.mat')))   % the paper's FBPA, ~15 min
-```
-
-The scripts in `tools/` (`compare_optimizers`, `develop_fopso_gwo`, `ablate_optimizers`,
-`compare_weighted`) skip any run whose result file already exists. Called with their stored
-folders, they therefore do nothing. To repeat runs in MATLAB, use a new folder, as with
-`compare_weighted(..., 'matlab_runs')` above, or move the stored files aside.
-
----
-
-## 12. Scope options for the next phase
-
-The work now has three separable contributions:
-
-* (a) a verified reproduction and audit of the base paper;
-* (b) a whole-controller tuning formulation;
-* (c) a new optimiser, FOPSO-GWO-CC.
-
-The next phase can strengthen any of them. Each option below states what it adds, what it
-needs, and what it risks.
-
-| Option | What it adds | What it needs | Risk |
-|---|---|---|---|
-| **A. Confirm and consolidate** | Turns the current results into publishable evidence | Run Sect. 11 in MATLAB; 20–30 seeds per optimiser and a Wilcoxon test (about 240 runs × 6 min: 24 CPU-hours, 6 h on 4 cores); sensitivity of CC's two settings (swarm share, sub-swarm size) | Low: the code exists |
-| **B. Robust controller** | Answers "does the better controller survive reality?" | ±10–20 % mass and inertia errors, gravity on, friction, sensor noise, other trajectories (`robot_params` already has the switches) | Medium: the margin over PSO-FOPID may shrink under model error |
-| **C. General optimiser** | Makes FOPSO-GWO-CC a contribution beyond this arm | A standard benchmark suite (e.g. CEC), other near-separable control problems, comparison with strong baselines at equal budget (L-SHADE, CMA-ES with restarts) | Medium to high: CC is designed for near-separable problems and may lose on non-separable ones |
-| **D. Extend the control problem** | A broader controller paper | Multi-objective tuning (a Pareto front of tracking against torque instead of one weighted cost); task-space trajectories; higher-fidelity plant (Simscape Multibody, now possible in MATLAB); real UR5 parameters | High effort; new modelling decisions |
-| **E. Report the paper's inconsistencies** | A short comment on the base paper | The audit as it stands (`docs/audit_report.md`) | A judgment for the supervisor: tone, venue, contact with the authors |
-
-**Recommendation:** start with A, then B. Both are cheap with the existing code and directly
-de-risk the central claim. Then choose between C (an optimiser paper) and D (a control
-paper), which sets the angle of the eventual publication.
-
-**Questions for the decision**
-
-1. Is the whole-controller cost (tracking within the paper's own torque) the right primary
-   objective, rather than the paper's step-ITAE fitness? Under the latter, FOPSO-GWO-CC is
-   only level with PSO.
-2. Should times be reported after the step (as the cost uses them), from t = 0 (as the paper
-   does), or both?
-3. Is the 5 % torque improvement, together with the physical-floor argument (Sect. 6.3),
-   acceptable as it stands?
-4. Should the next phase aim at an optimiser contribution (C), a controller contribution
-   (B/D), or both?
-
----
-
-## 13. Where everything is
+## 12. Where everything is
 
 | What | Where |
 |---|---|
@@ -910,7 +829,7 @@ paper), which sets the angle of the eventual publication.
 | Every table, regenerated by `main` | [`results/summary.md`](results/summary.md) |
 | Proposed optimiser | [`hybrid_fopso_cc.m`](hybrid_fopso_cc.m) (uses [`hybrid_fopso_gwo.m`](hybrid_fopso_gwo.m)) |
 | Proposed controller's gains | `results/fopso_gwo_cc_gains.mat`, `controller_gains('FOPSO_GWO_CC')` |
-| Every optimiser run behind Sect. 7 | `results/optimizer_runs/`, `results/dev_runs/`, `results/ablation_runs/`, `results/torque_runs/` |
+| Every optimiser run behind Sect. 8 | `results/optimizer_runs/`, `results/dev_runs/`, `results/ablation_runs/`, `results/torque_runs/` |
 
 `results/` holds the output that every number above comes from. `main` regenerates
 `summary.md`, the figures and `simulation_results.mat` in place, so running it overwrites
