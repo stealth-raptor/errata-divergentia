@@ -8,20 +8,22 @@ Base paper:
 > based on improved FOPID*, International Journal of Dynamics and Control **13**:137 (2025).
 > DOI 10.1007/s40435-025-01620-x
 
-> **Status of this branch.** Every number in this document was produced by this same code
-> running in GNU Octave 8.4 (branches `brand-new-day` and `fopso-gwo-hybrid`), where all
-> results were generated and verified. This branch holds the code in MATLAB form. It has
-> been checked statically:
+> **Status of this branch.** The numbers in this document come from the stored runs in
+> `results/`. The code has been checked as follows:
 > * all 28 `.m` files parse as MATLAB (MISS_HIT linter, no findings);
 > * the C source compiles as strict C99 with no variable-length arrays, so every compiler
 >   that MATLAB supports accepts it;
-> * all 307 stored `.mat` files load outside Octave and hold only numeric, text and
->   logical data.
+> * all 307 stored `.mat` files hold only numeric, text and logical data.
 >
-> **The code has not yet been run in MATLAB.** Sect. 11 gives the commands that confirm the
-> port and what each should print. The stored controllers will reproduce exactly. New
-> optimiser runs will differ seed by seed, because MATLAB and Octave draw different random
-> numbers for the same seed.
+> **Run in MATLAB R2024b (Windows 11), without the compiled simulation:**
+> * `verify_dynamics` passes (`robot_dynamics: all checks passed`);
+> * `main` reproduces every stored controller: its `summary.md` matches the stored one in
+>   every number.
+>
+> **Not yet run in MATLAB:** `build_mex` and `check_mex` (no C compiler was installed on the
+> test machine), and any optimiser re-run. Sect. 11 gives the commands and what each should
+> print. New optimiser runs will differ seed by seed from the stored ones, because MATLAB
+> draws different random numbers for the same seed.
 
 ## Contents
 
@@ -104,7 +106,8 @@ joints; lower is better.
 
 **Main caveats**
 
-* The code has not yet been run in MATLAB (Sect. 11).
+* The compiled simulation and the optimiser re-runs have not yet been run in MATLAB
+  (Sect. 11).
 * Each optimiser was run on 8 seeds and one plant. That is enough for the main claim but not
   for the small differences.
 * The plant follows the paper's assumptions: no gravity, no friction, nominal parameters.
@@ -181,7 +184,7 @@ tools/compare_weighted.m    PSO against FOPSO-GWO-CC with torque weighted 3x -> 
 
 data/paper_grid/            the paper's published curves (Figs 6-19), read from the PDF's vector
                             graphics, on its 0.01 s grid
-results/                    output of the Octave runs: summary.md (every table), figures, gains,
+results/                    stored output: summary.md (every table), figures, gains,
                             every optimiser run
 docs/audit_report.md        the audit of the paper and of the reproduction
 ```
@@ -260,7 +263,7 @@ No toolbox is used: the original code's `stepinfo` (2 % band) was replaced.
 
 * **Method:** least squares on the six joint trajectories of each experiment, with all
   joints in the fully coupled closed loop, solved by block-coordinate CMA-ES. This was done
-  by the Python tools on branch `brand-new-day`; the resulting gains are written into
+  by separate tools that are not part of this branch; the resulting gains are written into
   `controller_gains.m`.
 * **Why:** an earlier version fitted the gains to the five averaged numbers of Tables 3–4.
   That is 48 free gains (PID and FOPID together) constrained by 5 averaged numbers, so the
@@ -404,7 +407,7 @@ seeds.
 * It is a line-by-line C port of the simulation loop, the FOPID update and the dynamics.
 * It equals the `.m` code to round-off (`tools/check_mex.m`): 1e-14 rad typically, and
   6e-9 rad on the least well-conditioned gain set.
-* In Octave it turned 40 s per simulation into 0.03 s, which is what makes 3030-evaluation
+* It turns about 40 s per simulation into 0.03 s, which is what makes 3030-evaluation
   runs, and dozens of them, practical: about 6 minutes per run.
 * It is plain C99 with fixed-size arrays, so MinGW-w64, MSVC, gcc and clang all compile it.
 
@@ -417,8 +420,9 @@ seeds.
 * **Random numbers:** seeded with `rng`.
 * **Parallel runs:** `parfor` only when `UseParallel` is on. The three `parfor` loops are
   written so that MATLAB accepts them: sliced input and output, and a broadcast cost handle.
-* **What was removed:** the Octave-only cross-check against the Python model and the Python
-  tools themselves. They remain on `brand-new-day` and `fopso-gwo-hybrid`.
+* **What is not included:** the external tools used to extract the paper's curves and to
+  identify the gains. Their results are the files in `data/paper_grid/` and
+  `controller_gains.m`.
 
 ---
 
@@ -710,7 +714,8 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
 
 ## 10. Limitations
 
-* **The code has not been run in MATLAB yet.** See Sect. 11 for the checks.
+* **The compiled simulation and the optimiser re-runs have not yet been run in MATLAB.**
+  See Sect. 11 for the checks.
 * **Statistics.** Each optimiser ran on 8 seeds per cost. That is enough for the main claim
   (8 of 8 under `whole`, p = 0.004). It is not enough for the small differences: under the
   paper's fitness the seed-to-seed spread is as large as the gap between the optimisers. A
@@ -745,39 +750,67 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
   | Linux | gcc |
   | macOS | Xcode command line tools |
 
-  Without the compiler everything still runs on the `.m` simulation, with the same results.
-  Tuning is then impractically slow.
+  A fresh Windows machine has no supported compiler, and `mex -setup C` then fails with
+  "Supported compiler not detected". Install the free **MATLAB Support for MinGW-w64 C/C++
+  Compiler** (Home → Add-Ons → Get Add-Ons, or
+  <https://www.mathworks.com/matlabcentral/fileexchange/52848>) and run `mex -setup C` again.
+  Without a compiler everything still runs on the `.m` simulation, with the same results:
+  `main` takes about 2 minutes instead of seconds, and tuning is impractically slow, so
+  re-running optimisers needs the compiler.
+* **Git**, to clone the repository (or download the `escape-orbit` branch as a zip, in which
+  case the `git diff` check below is not available).
+* **Disk:** the repository is about 10 MB, mostly the stored runs in `results/`.
+
+### Get the code
+
+```
+git clone --branch escape-orbit https://github.com/stealth-raptor/errata-divergentia.git
+cd errata-divergentia
+```
 
 ### Steps (from the repository root)
 
+Start MATLAB in the repository root (the folder containing `main.m`), then:
+
 ```matlab
-mex -setup C                 % once per machine: pick the C compiler
-build_mex                    % compiles simulate_mex.c -> simulate_mex.<mexext>
+mex -setup C                 % once per machine: pick the C compiler (skip if none is installed)
+build_mex                    % compiles simulate_mex.c -> simulate_mex.<mexext> (skip if none)
 addpath tools
 
 verify_dynamics              % dynamics checks
-check_mex                    % compiled simulation == .m simulation (slow: runs the .m loop)
-main                         % every controller from the stored gains -> results/ (seconds)
+check_mex                    % compiled simulation == .m simulation (slow: runs the .m loop; needs the MEX)
+main                         % every controller from the stored gains -> results/
 ```
+
+The same without opening the MATLAB desktop (R2019a or newer), from a terminal in the
+repository root:
+
+```
+matlab -batch "addpath tools; verify_dynamics; main"
+```
+
+**`main` overwrites** `results/summary.md`, the figures (`results/*.png`) and
+`results/simulation_results.mat`. To get the stored versions back, run
+`git checkout -- results`.
 
 ### What each step should show
 
 | Step | Expected output |
 |---|---|
-| `verify_dynamics` | `robot_dynamics: all checks passed`. It asserts \|M − M_jacobian\| < 1e-12, M positive definite and energy drift < 1e-8; the Octave run gave about 1e-15 and 1e-14. |
+| `verify_dynamics` | `robot_dynamics: all checks passed`. It asserts \|M − M_jacobian\| < 1e-12, M positive definite and energy drift < 1e-8; the typical values are about 1e-15 and 1e-14. |
 | `check_mex` | `check_mex: simulate_mex and the .m loop agree`. It asserts max \|Δq\| < 1e-8 rad and a relative torque difference < 1e-4. |
-| `main` | Rewrites `results/summary.md`, the figures and `simulation_results.mat`. |
+| `main` | Prints `Simulating 6 controllers x 2 experiments`, one `done` line per controller, then `Saved results/summary.md ...`. Takes about 2 minutes on the `.m` simulation, seconds with the MEX. |
 
-**The decisive check comes after `main`:**
+**The decisive check comes after `main`** (in a git clone, from a terminal):
 
 ```
 git diff results/summary.md
 ```
 
 The simulation is deterministic, and every controller is loaded from the stored gains. If
-the port is faithful, `summary.md` changes in exactly one line, the sentence that says
-"in Octave", now "in MATLAB", and in no number. The PNG files are re-rendered, so they will
-show as changed.
+the setup is faithful, `summary.md` is identical to the stored one, or differs only in the
+sentence naming the platform, and in no number. The PNG files are re-rendered, so they will
+show as changed. Without git, compare `results/summary.md` with the tables in this README.
 
 A difference in the last printed digit of a number would come from floating-point
 differences between platforms; the controllers are numerically well-conditioned (D7, D13),
@@ -793,10 +826,9 @@ tune_fopid_hybrid(struct('Optimizer', 'FOPSO-GWO-CC', 'Fitness', 'whole', 'Rando
 
 * **Use a separate `OutFile`.** By default the tuner writes `results/<optimizer>_gains.mat`,
   replacing the stored controller that `main` reports. The old file is kept as `_prev.mat`.
-* **This will not reproduce the stored seed-7 controller.** MATLAB and Octave generate
-  different random numbers for the same seed: after `rng(0)`, `rand(1,3)` gives
-  0.8147 0.9058 0.1270 in MATLAB and 0.8444 0.7580 0.4206 in Octave. A MATLAB run is
-  therefore a new, independent sample.
+* **This will not reproduce the stored seed-7 controller.** The stored runs were generated
+  with a different random number generator, so the same seed gives a different stream in
+  MATLAB. A MATLAB run is therefore a new, independent sample.
 * **The claim to re-verify is statistical**: FOPSO-GWO-CC should beat PSO on most or all
   seeds under the whole-controller cost. To test it in MATLAB, write to a new folder; the
   stored runs are skipped if the file names match. With the MEX, this takes about 16 runs ×
@@ -873,8 +905,6 @@ paper), which sets the angle of the eventual publication.
 | What | Where |
 |---|---|
 | This document, MATLAB code for review | branch `escape-orbit` (this branch) |
-| The same code in Octave, with the Python tools (curve extraction, gain identification), the progress report and the earlier README | branch `fopso-gwo-hybrid` |
-| Final code before FOPSO-GWO-CC; the Python tools | branch `brand-new-day` |
 | The original audit | branch `audit` |
 | The audit of the paper | [`docs/audit_report.md`](docs/audit_report.md) |
 | Every table, regenerated by `main` | [`results/summary.md`](results/summary.md) |
@@ -882,6 +912,6 @@ paper), which sets the angle of the eventual publication.
 | Proposed controller's gains | `results/fopso_gwo_cc_gains.mat`, `controller_gains('FOPSO_GWO_CC')` |
 | Every optimiser run behind Sect. 7 | `results/optimizer_runs/`, `results/dev_runs/`, `results/ablation_runs/`, `results/torque_runs/` |
 
-`results/` holds the Octave output that every number above comes from. In MATLAB, `main`
-regenerates `summary.md`, the figures and `simulation_results.mat` in place. It only reads
-the optimiser runs.
+`results/` holds the output that every number above comes from. `main` regenerates
+`summary.md`, the figures and `simulation_results.mat` in place, so running it overwrites
+those files (restore them with `git checkout -- results`). It only reads the optimiser runs.
