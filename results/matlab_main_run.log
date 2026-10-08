@@ -1,3 +1,14 @@
+﻿distal    |M - M_jacobian| = 1.8e-15   min eig(M) = 3.953e-02   energy drift (0.2 s) = 2.5e-15
+middle    |M - M_jacobian| = 1.8e-15   min eig(M) = 2.927e-02   energy drift (0.2 s) = 2.3e-15
+proximal  |M - M_jacobian| = 3.6e-15   min eig(M) = 3.878e-02   energy drift (0.2 s) = 7.0e-15
+robot_dynamics: all checks passed
+Simulating 6 controllers x 2 experiments (separate gains) ...
+  PID       done (14.0 s)
+  FOPID     done (13.4 s)
+  FBPA      done (12.8 s)
+  PSO       done (20.6 s)
+  FOPSO_GWO done (30.8 s)
+  FOPSO_GWO_CC done (33.1 s)
 # Results
 
 Jiang, Zhang & Liu, *Trajectory tracking control of a 6-DOF robotic arm based on improved
@@ -496,3 +507,18 @@ consistent, are much smaller. See docs/audit_report.md, Sect. 3.
 | Kd | 108 | 559.7 | 435.8 | 5.332 | 95.9 | 3.269 |
 | lambda | 1.446 | 0.3415 | 1.823 | 0.7768 | 0.7072 | 0.304 |
 | mu | 0.9608 | 0.6037 | 0.7934 | 1.065 | 0.8111 | 1.217 |
+  wrote 16 figures to results/ (figs 6-19, compare_step, compare_sine)
+
+Saved results/summary.md, results/*.png and results\simulation_results.mat
+
+ans = 
+
+  struct with fields:
+
+             PID: [1x1 struct]
+           FOPID: [1x1 struct]
+            FBPA: [1x1 struct]
+             PSO: [1x1 struct]
+       FOPSO_GWO: [1x1 struct]
+    FOPSO_GWO_CC: [1x1 struct]
+
