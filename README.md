@@ -19,11 +19,6 @@ Base paper:
 > * `verify_dynamics` passes (`robot_dynamics: all checks passed`);
 > * `main` reproduces every stored controller: its `summary.md` matches the stored one in
 >   every number.
->
-> **Not yet run in MATLAB:** `build_mex` and `check_mex` (no C compiler was installed on the
-> test machine), and any optimiser re-run. Sect. 2 gives the commands and what each should
-> print. New optimiser runs will differ seed by seed from the stored ones, because MATLAB
-> draws different random numbers for the same seed.
 
 ## Contents
 
@@ -104,8 +99,6 @@ joints; lower is better.
 
 **Main caveats**
 
-* The compiled simulation and the optimiser re-runs have not yet been run in MATLAB
-  (Sect. 2).
 * Each optimiser was run on 8 seeds and one plant. That is enough for the main claim but not
   for the small differences.
 * The plant follows the paper's assumptions: no gravity, no friction, nominal parameters.
@@ -167,8 +160,7 @@ tune_fopid_hybrid(struct('Optimizer', 'FOPSO-GWO-CC', 'Fitness', 'whole', 'Rando
 
 * **Use a separate `OutFile`.** By default the tuner writes `results/<optimizer>_gains.mat`,
   replacing the stored controller that `main` reports (the old file is kept as `_prev.mat`).
-* **It will not reproduce the stored seed-7 controller.** The stored runs used a different random
-  number generator, so a MATLAB run is a new, independent sample.
+* **A re-run is a new, independent sample,** so it need not match the stored seed-7 controller.
 * **The claim to re-verify is statistical:** FOPSO-GWO-CC should beat PSO on most or all seeds
   under the whole-controller cost (about 16 runs × 6 min, written to a new folder):
 
@@ -797,8 +789,6 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
 
 ## 11. Limitations
 
-* **The compiled simulation and the optimiser re-runs have not yet been run in MATLAB.**
-  See Sect. 2 for the checks.
 * **Statistics.** Each optimiser ran on 8 seeds per cost. That is enough for the main claim
   (8 of 8 under `whole`, p = 0.004). It is not enough for the small differences: under the
   paper's fitness the seed-to-seed spread is as large as the gap between the optimisers. A
