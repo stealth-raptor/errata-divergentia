@@ -15,8 +15,8 @@ function [M, h] = robot_dynamics(P, q, qd)
 %     h             = RNEA(q, qd, qdd = 0) with gravity, plus friction
 %     column j of M = RNEA(q, qd = 0, qdd = e_j) without gravity
 %   All seven recursions are run at once as the columns of 3x7 arrays, and
-%   every cross product is written out, because Octave's cost is per
-%   statement, not per floating-point operation.
+%   every cross product is written out, because the cost of interpreted
+%   code is per statement, not per floating-point operation.
 %
 %   Verified against an independent Jacobian-based M(q) and by energy
 %   conservation (tools/verify_dynamics.m).

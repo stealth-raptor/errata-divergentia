@@ -12,7 +12,7 @@ function out = simulate_closed_loop(P, gains, reference, opt)
 %                unstable candidates quickly;
 %                use_mex (true when SIMULATE_MEX has been built): run the
 %                compiled C version of this loop (BUILD_MEX), the same model
-%                and results (tools/check_mex.m), about 1000x faster in Octave
+%                and results (tools/check_mex.m), several hundred times faster
 %
 %   Returns, sampled every log_dt seconds:
 %     out.t   1xN time vector

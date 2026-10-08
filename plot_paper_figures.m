@@ -29,7 +29,7 @@ function plot_paper_figures(results, outdir)
 %   and this work's (thin colour), joint by joint, for PID, FOPID and, when
 %   present, FBPA-FOPID, with the rms difference in each title.
 %
-%   Works in Octave (gnuplot or Qt toolkit) and MATLAB.
+%   Uses base MATLAB graphics only (no toolbox).
 %
 %   See also MAIN, PAPER_CURVES.
 
@@ -154,8 +154,8 @@ light_grid();
 end
 
 function light_grid()
-%LIGHT_GRID  Pale grid lines as in the paper (property names differ between
-%   MATLAB and Octave versions, so failures are ignored).
+%LIGHT_GRID  Pale grid lines as in the paper (GridColor and GridAlpha exist
+%   from R2014b on; on older releases the default grid is kept).
 try, set(gca, 'GridColor', [0.8 0.8 0.8]); catch, end
 try, set(gca, 'GridAlpha', 0.6); catch, end
 end

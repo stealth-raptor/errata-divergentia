@@ -3,6 +3,12 @@
 Paper: Jiang, Zhang & Liu, *Trajectory tracking control of a 6-DOF robotic arm based on improved FOPID*, IJDC 13:137 (2025).
 Branch: `audit`. Everything below can be re-run from the repository (commands in Sect. 7).
 
+> **On branch `escape-orbit` (MATLAB):** this report is kept as the reference for the
+> reproduction. The Python tools it cites (`tools/*.py`) and the raw data they read or write
+> (`data/paper_curves/`, `data/identification/`) are not part of this MATLAB branch; they are on
+> branches `brand-new-day` and `fopso-gwo-hybrid`. Their results are already built into the MATLAB
+> code: the identified gains in `controller_gains.m`, the extracted curves in `data/paper_grid/`.
+
 ---
 
 ## 0. Summary

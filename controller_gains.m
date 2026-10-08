@@ -13,7 +13,9 @@ function gains = controller_gains(controller, experiment)
 %   experiment (Figs 6-11) and/or of the sine experiment (Figs 13-18) of
 %   that controller were matched by least squares in the fully coupled
 %   closed loop
-%   (tools/identify_gains.py; plant: table2 lengths, COM distal, g = 0).
+%   (tools/identify_gains.py on branch brand-new-day, not needed here: the
+%   identified gains are written out below; plant: table2 lengths, COM
+%   distal, g = 0).
 %
 %   'shared'      one gain set fitted to both experiments at once.  This is
 %                 what the paper implies (it describes one PID and one FOPID

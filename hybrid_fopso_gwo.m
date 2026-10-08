@@ -399,10 +399,6 @@ end
 
 % ------------------------------------------------------------------------
 function save_state(file, state) %#ok<INUSD>
-%SAVE_STATE  Checkpoint the optimiser state, in MAT format under Octave too.
-if exist('OCTAVE_VERSION', 'builtin')
-    save('-mat7-binary', file, 'state');
-else
-    save(file, 'state');
-end
+%SAVE_STATE  Checkpoint the optimiser state (MAT-file version 7).
+save(file, 'state', '-v7');
 end

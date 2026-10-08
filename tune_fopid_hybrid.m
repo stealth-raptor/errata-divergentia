@@ -14,6 +14,9 @@ function tuned = tune_fopid_hybrid(opts)
 %                              ITAE, Eq. 29) -> results/fbpa_gains.mat
 %     Optimizer = 'PSO'        plain PSO (PSO), the baseline both improve on
 %                              -> results/pso_gains.mat
+%     Optimizer = 'FOPSO-GWO-CC'  FOPSO-GWO, then cooperative coevolution by
+%                              joint (HYBRID_FOPSO_CC), the proposed optimiser
+%                              -> results/fopso_gwo_cc_gains.mat
 %   CONTROLLER_GAINS('FOPSO_GWO') and CONTROLLER_GAINS('FBPA') read those
 %   files, and MAIN then adds the tuned controllers to the comparison and the
 %   figures.  The optimisers share the search space, the seed and, for the
@@ -80,7 +83,7 @@ function tuned = tune_fopid_hybrid(opts)
 %   FOPSO-GWO takes about 6 min and FBPA about 15 min; without it this is a
 %   long, overnight-scale run, so:
 %     * opts.UseParallel = true evaluates the swarm with PARFOR (Parallel
-%       Computing Toolbox; on by default when the toolbox is installed);
+%       Computing Toolbox; off by default, as in the reported runs);
 %     * a checkpoint is written after every iteration, and an interrupted
 %       run resumes from it when called again with the same options (a
 %       checkpoint from a run with other options is ignored with a warning)
@@ -92,7 +95,8 @@ function tuned = tune_fopid_hybrid(opts)
 %       baseline is in the swarm.
 %
 %   Options (besides those of HYBRID_FOPSO_GWO or FBPA, which are passed through):
-%     Optimizer    'FOPSO-GWO' (default), 'FBPA' or 'PSO'
+%     Optimizer    'FOPSO-GWO' (default), 'FOPSO-GWO-CC' (the proposed one,
+%                  HYBRID_FOPSO_CC), 'FOPSO-GWO-CMA', 'PSO', 'FBPA' or 'CMA-ES'
 %     Fitness      'composite', 'torque', 'itae' or 'whole'; default
 %                  'composite' for FOPSO-GWO and PSO, 'itae' (the paper's) for FBPA
 %     Weights      1x8 weights of FOPID_FITNESS (overrides Fitness)
@@ -357,9 +361,8 @@ end
 
 % ------------------------------------------------------------------------
 function opts = set_defaults(opts)
-% PARFOR needs MATLAB's Parallel Computing Toolbox; Octave runs it serially
-has_pct = ~exist('OCTAVE_VERSION', 'builtin') && ~isempty(ver('parallel')) ...
-          && license('test', 'Distrib_Computing_Toolbox');
+% UseParallel is off by default: the reported runs were serial, and PARFOR
+% (Parallel Computing Toolbox) changes the run time, not the results
 if ~isfield(opts, 'Optimizer'), opts.Optimizer = 'FOPSO-GWO'; end
 switch upper(strrep(opts.Optimizer, '_', '-'))
     case 'FOPSO-GWO', opts.Optimizer = 'FOPSO-GWO';  fitness = 'composite';
@@ -375,7 +378,7 @@ d = struct('PopSize', 30, 'MaxIter', 100, 'Fitness', fitness, 'Weights', [], ...
            'Regret', 1, 'Baseline', 'FOPID', 'Start', {{}}, 'Target', 'baseline', 'CapScale', 1, 'EffortWeights', [], ...
            'Robust', exist('simulate_mex') == 3, ...                       %#ok<EXIST>
            'Bounds', struct('lo', [-2 -4 -1 0.05 0.05], 'hi', [5 5 3 1.95 1.95]), ...
-           'UseParallel', has_pct, ...
+           'UseParallel', false, ...
            'Checkpoint', fullfile('results', [stem '_checkpoint.mat']), ...
            'Resume', true, ...
            'OutFile', fullfile('results', [stem '_gains.mat']));
@@ -387,10 +390,6 @@ end
 
 % ------------------------------------------------------------------------
 function save_mat(file, S)
-%SAVE_MAT  Save the fields of S as variables, in MAT format under Octave too.
-if exist('OCTAVE_VERSION', 'builtin')
-    save('-mat7-binary', file, '-struct', 'S');
-else
-    save(file, '-struct', 'S');
-end
+%SAVE_MAT  Save the fields of S as variables (MAT-file version 7).
+save(file, '-struct', 'S', '-v7');
 end

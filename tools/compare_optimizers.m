@@ -36,8 +36,8 @@ function compare_optimizers(seeds, optimizers, costs)
 %
 %   Runtime with the compiled simulation: about 6 min per PSO or FOPSO-GWO
 %   run and 10-20 min per FBPA run (its antennae triple the evaluations).  The runs
-%   are independent, so several Octave processes can share the work, e.g.
-%   one per seed:  octave --eval "addpath tools; compare_optimizers(2)"
+%   are independent, so several MATLAB sessions can share the work, e.g.
+%   one per seed:  matlab -batch "addpath tools; compare_optimizers(2)"
 %
 %   See also TUNE_FOPID_HYBRID, FBPA, HYBRID_FOPSO_GWO, MAIN.
 

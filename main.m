@@ -125,11 +125,7 @@ if ~isempty(runs)
     plot_convergence(runs, fullfile(outdir, 'convergence.png'));
 end
 matfile = fullfile(outdir, 'simulation_results.mat');
-if exist('OCTAVE_VERSION', 'builtin')
-    save('-mat7-binary', matfile, 'results', 'paper', 'figs', 'runs');
-else
-    save(matfile, 'results', 'paper', 'figs', 'runs', '-v7');
-end
+save(matfile, 'results', 'paper', 'figs', 'runs', '-v7');
 fprintf('\nSaved %s/summary.md, %s/*.png and %s\n', outdir, outdir, matfile);
 end
 
@@ -199,7 +195,7 @@ f5 = {'%.1f', '%.2f', '%.2f', '%.2e', '%.4g'};
 out('# Results\n\n');
 out('Jiang, Zhang & Liu, *Trajectory tracking control of a 6-DOF robotic arm based on improved\n');
 out('FOPID*, Int. J. Dyn. Control 13:137 (2025), reproduced on its own arm (Table 2, UR DH\n');
-out('kinematics, Eq. 21) in Octave, and extended with this work''s optimiser, FOPSO-GWO.\n\n');
+out('kinematics, Eq. 21) in MATLAB, and extended with this work''s optimiser, FOPSO-GWO.\n\n');
 out('* **Experiments:** step of 1 rad on every joint at t = 1 s; sine tracking, sin(1.5 t) rad.\n');
 out('* **Metrics (paper, Tables 3 and 4):** step overshoot, adjustment time (5 %% band) and peak\n');
 out('  time, all from t = 0; sine MSE and sum of |tau|; each averaged over the six joints and\n');

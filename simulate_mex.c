@@ -7,9 +7,9 @@
  *                                                use_int, use_diff, abort_err)
  *
  * A line-for-line port of the loop in SIMULATE_CLOSED_LOOP together with
- * FOPID_UPDATE and ROBOT_DYNAMICS, so that the FOPSO-GWO tuner runs at
- * compiled speed under Octave as well as MATLAB (about 400x faster than the
- * .m loop in Octave).  SIMULATE_CLOSED_LOOP calls it automatically once it
+ * FOPID_UPDATE and ROBOT_DYNAMICS, so that the optimisers run at compiled
+ * speed (several hundred times faster than the .m loop).
+ * SIMULATE_CLOSED_LOOP calls it automatically once it
  * has been built with BUILD_MEX; tools/check_mex.m verifies that both give
  * the same results.
  *
@@ -27,7 +27,8 @@
  * a non-finite state or |q| > 1e3); kstop is the 1-based sample index at
  * which the loop ended.
  *
- * Build:  build_mex  (mkoctfile --mex in Octave, mex in MATLAB)
+ * Build:  build_mex  (MATLAB's mex; plain C99 with fixed-size arrays, so any
+ *         compiler that "mex -setup C" offers, MinGW-w64 and MSVC included)
  */
 #include "mex.h"
 #include <math.h>

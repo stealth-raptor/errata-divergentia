@@ -9,7 +9,7 @@ function verify_dynamics()
 %   for every centre-of-mass placement.
 
 addpath(fileparts(fileparts(mfilename('fullpath'))));
-rand('seed', 1);
+rng(1);                                  % random test states (any seed will do)
 for com = {'distal', 'middle', 'proximal'}
     P = robot_params(struct('com', com{1}, 'g', 9.81));
     q = 4 * rand(6, 1) - 2;
