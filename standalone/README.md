@@ -114,7 +114,8 @@ Each file was checked against the repository, using the repository's compiled si
   run iteration for iteration. They end on the identical controller: the same gains to the
   last digit and the same cost.
   * `FOPSO_GWO_CC('tune', 7)`: 0.733581254781147;
-  * `FOPSO_GWO('tune', 6)`: 1.41564169274606.
+  * `FOPSO_GWO('tune', 6)`: 1.41564169274606;
+  * `FBPA_FOPID('tune', 1)`: 0.0954847282015242.
 
   So the files contain exactly the algorithms that produced the reported results.
 * **The plain PID equals the repository's FOPID code with λ = μ = 1.** The joint angles and
