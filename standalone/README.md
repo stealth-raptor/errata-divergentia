@@ -109,4 +109,14 @@ Each file was checked against the repository, using the repository's compiled si
   * `FOPSO_GWO_CC`: 0.733581254781147.
 
   The repository's own `fopid_fitness.m` gives the same values.
+* **Same optimiser runs.** Re-running the optimisers from scratch with the stored random
+  seeds, on the platform the stored runs were made on (GNU Octave), reproduces every stored
+  run iteration for iteration. They end on the identical controller: the same gains to the
+  last digit and the same cost.
+  * `FOPSO_GWO_CC('tune', 7)`: 0.733581254781147;
+  * `FOPSO_GWO('tune', 6)`: 1.41564169274606.
+
+  So the files contain exactly the algorithms that produced the reported results.
+* **The plain PID equals the repository's FOPID code with λ = μ = 1.** The joint angles and
+  torques differ by exactly 0.
 * **The files parse as MATLAB** (MISS_HIT linter, no findings).
