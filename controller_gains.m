@@ -5,7 +5,8 @@ function gains = controller_gains(controller, experiment)
 %   gains = CONTROLLER_GAINS(controller, experiment)  gain set for one experiment
 %     controller  'PID' (lambda = mu = 1), 'FOPID', 'FBPA' (the FBPA-FOPID),
 %                 'PSO' (the PSO-FOPID), 'FOPSO_GWO', 'FOPSO_GWO_CMA' or 'FOPSO_GWO_CC'
-%     experiment  'step', 'sine', or 'shared' (the default)
+%     experiment  'step', 'sine', or 'shared' (the default); for PID and FOPID
+%                 also 'table_step' and 'table_sine'
 %
 %   Each field is 6x1, one entry per joint.  The paper publishes no gains.
 %   All of them were identified from the paper's own published curves, read
@@ -26,6 +27,16 @@ function gains = controller_gains(controller, experiment)
 %                 same gains; separate sets match each experiment more
 %                 closely (docs/audit_report.md, 4.3).  MAIN uses these by
 %                 default.
+%
+%   'table_step', 'table_sine'  (PID and FOPID) gain sets fitted to the
+%                 paper's Tables 3 and 4 instead of its curves: every table
+%                 metric of that experiment within 4 % of the paper's value,
+%                 and otherwise as close to the published curves as possible
+%                 (tools/fit_table_gains.m).  The paper's tables disagree with
+%                 its own figures (docs/audit_report.md, 3), so these sets
+%                 match the curves less closely than 'step' and 'sine'.  MAIN
+%                 uses them with MAIN('table').  They are not used by the
+%                 tuning cost, whose torque caps come from the sets above.
 %
 %   'FOPSO_GWO'   the FOPID tuned by this work's FO-PSO / grey-wolf hybrid,
 %   'FOPSO_GWO_CMA' by that hybrid with its CMA-ES refinement,

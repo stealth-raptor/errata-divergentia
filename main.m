@@ -213,11 +213,12 @@ if strcmp(mode, 'separate')
     out('    paper''s published curves of each controller, one set per experiment\n');
     out('    (`controller_gains(name, experiment)`).\n');
 elseif strcmp(mode, 'table')
-    out('  * PID and FOPID: gains fitted to the paper''s Tables 3 and 4, every table metric within\n');
-    out('    4 %% of the paper''s value and otherwise as close to the published curves as possible,\n');
-    out('    one set per experiment (`controller_gains(name, ''table_step'' | ''table_sine'')`,\n');
-    out('    `tools/fit_table_gains.m`). The sine torque is left free: the paper''s torque values\n');
-    out('    are not physically consistent (Sect. 7).\n');
+    out('  * PID and FOPID: gains fitted to the paper''s Tables 3 and 4, every table metric (the\n');
+    out('    sine torque included) within 4 %% of the paper''s value and otherwise as close to the\n');
+    out('    published curves as possible, one set per experiment (`controller_gains(name,\n');
+    out('    ''table_step'' | ''table_sine'')`, `tools/fit_table_gains.m`). The paper''s tables\n');
+    out('    disagree with its own figures (Sect. 7), so these gains follow the published curves\n');
+    out('    less closely than those identified from the curves (Sect. 6).\n');
     out('  * FBPA-FOPID: gains identified from the paper''s published curves, one set per experiment\n');
     out('    (`controller_gains(''FBPA'', experiment)`).\n');
 else
