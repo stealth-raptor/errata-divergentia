@@ -26,7 +26,9 @@ function fit = fit_table_gains(controller, experiment, opts)
 %
 %   Options: Tol (0.04), Decades (2), Torque (false: the sine fit leaves
 %   sum |tau| free; true: it is fitted too), MaxEvals (3000), Sigma0 (0.08),
-%   RandomSeed (1), Verbose (true).
+%   RandomSeed (1), Verbose (true), Start (a gain struct to start the
+%   search from, e.g. an earlier fit, instead of the curve-identified gains;
+%   the search box and the curve reference stay those of the latter).
 %
 %   fit: gains, metrics (the table's metrics, averaged over the joints),
 %   target, error (relative, per metric), curve_rms (per joint, rad),
@@ -38,7 +40,7 @@ function fit = fit_table_gains(controller, experiment, opts)
 
 if nargin < 3, opts = struct(); end
 d = struct('Tol', 0.04, 'Decades', 2, 'Torque', false, 'MaxEvals', 3000, ...
-           'Sigma0', 0.08, 'RandomSeed', 1, 'Verbose', true);
+           'Sigma0', 0.08, 'RandomSeed', 1, 'Verbose', true, 'Start', []);
 for f = fieldnames(d)'
     if ~isfield(opts, f{1}), opts.(f{1}) = d.(f{1}); end
 end
@@ -71,6 +73,12 @@ end
 n = numel(x0);
 decode = @(z) to_gains(lo + z .* (hi - lo), fractional);
 z0 = (x0 - lo) ./ (hi - lo);
+if ~isempty(opts.Start)
+    s0 = opts.Start;
+    xs = log10([s0.Kp(:); s0.Ki(:); s0.Kd(:)])';
+    if fractional, xs = [xs, s0.lambda(:)', s0.mu(:)']; end
+    z0 = min(max((xs - lo) ./ (hi - lo), 0), 1);
+end
 
 [~, m0, rms0] = evaluate(P, g0, experiment, paper, idx, target, opts.Tol, 1);
 cost = @(z) evaluate(P, decode(z), experiment, paper, idx, target, opts.Tol, mean(rms0));

@@ -3,6 +3,9 @@ function results = main(mode)
 %
 %   results = MAIN()           PID / FOPID / FBPA-FOPID gains fitted to each experiment
 %   results = MAIN('shared')   one gain set per controller for both experiments
+%   results = MAIN('table')    PID and FOPID with the gains fitted to the paper's
+%                              Tables 3 and 4 (TOOLS/FIT_TABLE_GAINS), one set per
+%                              experiment; FBPA-FOPID as in MAIN()
 %
 %   Runs every controller through both experiments of the paper,
 %     step response : 1 rad on every joint at t = 1 s
@@ -46,13 +49,14 @@ function results = main(mode)
 %     TUNE_FOPID_HYBRID    -> (separately) the FOPSO-GWO gains
 
 if nargin < 1, mode = 'separate'; end
-if ~any(strcmp(mode, {'separate', 'shared'}))
-    error('main:mode', 'mode must be ''separate'' or ''shared''');
+if ~any(strcmp(mode, {'separate', 'shared', 'table'}))
+    error('main:mode', 'mode must be ''separate'', ''shared'' or ''table''');
 end
 here = fileparts(mfilename('fullpath'));
 cd(here);
 outdir = 'results';
 if strcmp(mode, 'shared'), outdir = fullfile('results', 'shared_gains'); end
+if strcmp(mode, 'table'),  outdir = fullfile('results', 'table_gains');  end
 if ~exist(outdir, 'dir'), mkdir(outdir); end
 
 P = robot_params();
@@ -84,6 +88,9 @@ for i = 1:numel(controllers)
     if tuned || strcmp(mode, 'shared')
         gains.step = controller_gains(name);      % one set for both experiments
         gains.sine = gains.step;
+    elseif strcmp(mode, 'table') && any(strcmp(name, {'PID', 'FOPID'}))
+        gains.step = controller_gains(name, 'table_step');   % fitted to Tables 3 and 4
+        gains.sine = controller_gains(name, 'table_sine');
     else
         gains.step = controller_gains(name, 'step');
         gains.sine = controller_gains(name, 'sine');
@@ -205,6 +212,14 @@ if strcmp(mode, 'separate')
     out('  * PID, FOPID and FBPA-FOPID, the paper''s three controllers: gains identified from the\n');
     out('    paper''s published curves of each controller, one set per experiment\n');
     out('    (`controller_gains(name, experiment)`).\n');
+elseif strcmp(mode, 'table')
+    out('  * PID and FOPID: gains fitted to the paper''s Tables 3 and 4, every table metric within\n');
+    out('    4 %% of the paper''s value and otherwise as close to the published curves as possible,\n');
+    out('    one set per experiment (`controller_gains(name, ''table_step'' | ''table_sine'')`,\n');
+    out('    `tools/fit_table_gains.m`). The sine torque is left free: the paper''s torque values\n');
+    out('    are not physically consistent (Sect. 7).\n');
+    out('  * FBPA-FOPID: gains identified from the paper''s published curves, one set per experiment\n');
+    out('    (`controller_gains(''FBPA'', experiment)`).\n');
 else
     out('  * PID, FOPID and FBPA-FOPID, the paper''s three controllers: gains identified from the\n');
     out('    paper''s published curves of each controller, one set for both experiments\n');
