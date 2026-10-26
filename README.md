@@ -1,7 +1,8 @@
 ﻿# Improved FOPID tuning for a 6-DOF robotic arm: reproduction, audit and FOPSO-GWO-CC
 
-**Branch `standalone-methods`: the MATLAB version of the work, for review, with every method
-also isolated in a file of its own ([`standalone/`](standalone/README.md)).**
+**Branch `table-match`: the MATLAB version of the work, for review, with every method also
+isolated in a file of its own ([`standalone/`](standalone/README.md)), and PID / FOPID gains
+that reproduce the paper's Tables 3–4 to within 4 % ([Sect. 6, 5.4](#54-gains-fitted-to-the-papers-tables-maintable)).**
 
 Base paper:
 
@@ -11,7 +12,7 @@ Base paper:
 
 > **Status of this branch.** The numbers in this document come from the stored runs in
 > `results/`. The code has been checked as follows:
-> * all 33 `.m` files parse as MATLAB (MISS_HIT linter, no findings);
+> * all 34 `.m` files parse as MATLAB (MISS_HIT linter, no findings);
 > * the C source compiles as strict C99 with no variable-length arrays, so every compiler
 >   that MATLAB supports accepts it;
 > * all 307 stored `.mat` files hold only numeric, text and logical data.
@@ -113,7 +114,7 @@ joints; lower is better.
 **Requirements:** MATLAB R2018a or newer (R2016b is the minimum), no toolboxes, and Git.
 
 ```
-git clone --branch standalone-methods https://github.com/stealth-raptor/errata-divergentia.git
+git clone --branch table-match https://github.com/stealth-raptor/errata-divergentia.git
 cd errata-divergentia
 ```
 
@@ -205,6 +206,7 @@ or pass `'UseParallel', true` to `tune_fopid_hybrid` (needs the Parallel Computi
 
 ```matlab
 main('shared')      % one gain set per paper controller -> results/shared_gains/
+main('table')       % PID and FOPID with gains fitted to the paper's Tables 3-4 -> results/table_gains/
 tune_fopid_hybrid(struct('Optimizer', 'FBPA', 'RandomSeed', 1, ...
                          'OutFile', fullfile('results', 'matlab_fbpa_seed1.mat')))   % the paper's FBPA, ~15 min
 ```
@@ -374,6 +376,10 @@ No toolbox is used: the original code's `stepinfo` (2 % band) was replaced.
   * one gain set per experiment (the default). The paper does not say whether its two
     experiments shared gains, and separate sets fit 15–19 % better;
   * one set for both experiments, `main('shared')`.
+* **A third variant, fitted to the tables (`main('table')`, Sect. 6, 5.4):** PID and FOPID
+  gains whose averaged metrics match the paper's Tables 3–4 to within 4 %, the torque
+  included. Unlike the earlier table fit above, they are also kept as close to the published
+  curves as the table allows.
 * **Caveat:** the identified gains are not unique. They show the curves are attainable, not
   that they are the authors' gains.
 
@@ -593,6 +599,49 @@ averaged table values.
   * joint 5's fast spike followed by a slow swing.
 * `results/compare_step.png` and `results/compare_sine.png` overlay every published curve on
   the reproduction.
+
+### 5.4 Gains fitted to the paper's tables (`main('table')`)
+
+The gains above follow the paper's **curves**, so their averaged metrics differ from the
+paper's **tables** by up to a third (5.1); the tables and the figures disagree with each other
+(5.2). `tools/fit_table_gains.m` re-fits the PID and FOPID gains to the tables instead:
+
+* every metric of the paper's Table 3 (step) or Table 4 (sine) must come within 4 % of the
+  paper's value; among the gains that do, the search keeps those closest to the published
+  curves;
+* the search is CMA-ES, started from the curve-identified gains, one gain set per
+  experiment as in the default reproduction;
+* candidates that diverge or are numerically ill-conditioned are rejected, as in the tuning.
+
+`main('table')` uses these gains for PID and FOPID (`results/table_gains/summary.md`), as do
+`PID_conventional('table')` and `FOPID_conventional('table')` in `standalone/`.
+
+| Controller | Source | Overshoot (%) | Adjustment time (s) | Peak time (s) | Sine MSE (rad²) | Sine Σ\|τ\| (Nm) |
+|---|---|---:|---:|---:|---:|---:|
+| PID | Paper (Tables 3–4) | 54.6 | 2.44 | 1.39 | 2.27e-2 | 3.74e4 |
+| PID | This work, gains fitted to the tables | 52.5 | 2.34 | 1.42 | 2.18e-2 | 3.60e4 |
+| | *Difference* | *−3.9 %* | *−4.0 %* | *+2.0 %* | *−4.0 %* | *−3.8 %* |
+| FOPID | Paper (Tables 3–4) | 31.2 | 1.89 | 1.33 | 8.80e-3 | 2.57e4 |
+| FOPID | This work, gains fitted to the tables | 31.1 | 1.87 | 1.32 | 8.70e-3 | 2.50e4 |
+| | *Difference* | *−0.2 %* | *−1.0 %* | *−0.4 %* | *−1.1 %* | *−2.7 %* |
+
+What matching the tables costs, as the mean rms difference to the published curves (rad):
+
+| Gains | PID step | PID sine | FOPID step | FOPID sine |
+|---|---:|---:|---:|---:|
+| Identified from the curves (default) | 0.092 | 0.080 | 0.058 | 0.051 |
+| **Fitted to the tables, kept close to the curves** (`main('table')`) | 0.118 | 0.143 | 0.066 | 0.091 |
+| Fitted to the tables alone (the earlier version, D6) | 0.297 | 0.188 | 0.171 | 0.099 |
+
+* **The step metrics** match the table with little change to the curves. The largest
+  change is PID joint 5, whose step curve moves away from the paper's (0.42 rad rms).
+* **Matching the torque column moves the sine curves most.** Torque here is 3.6e4 Nm for
+  PID and 2.5e4 Nm for FOPID, about 3.4 and 2.4 times what the curve-identified gains use. The paper's torque column is its own Fig. 19 listed under the wrong controllers
+  (Sect. 10), so these gains reproduce the table's number, not a torque the paper's curves
+  need. With the torque left free, the same fit matches the sine MSE within 4 % at a curve
+  rms of 0.086 (PID) and 0.053 rad (FOPID).
+* **No other result changes.** FBPA-FOPID, the tuned controllers, the whole-controller cost
+  and its torque caps all use the curve-identified gain sets, which are unchanged.
 
 ---
 
@@ -840,8 +889,9 @@ The details and evidence are in [`docs/audit_report.md`](docs/audit_report.md).
 
 | What | Where |
 |---|---|
-| This document, MATLAB code for review | branch `standalone-methods` (this branch) |
+| This document, MATLAB code for review | branch `table-match` (this branch) |
 | One self-contained file per method | [`standalone/`](standalone/README.md) |
+| PID / FOPID gains fitted to the paper's tables | [`results/table_gains/summary.md`](results/table_gains/summary.md), [`tools/fit_table_gains.m`](tools/fit_table_gains.m) |
 | The original audit | branch `audit` |
 | The audit of the paper | [`docs/audit_report.md`](docs/audit_report.md) |
 | Every table, regenerated by `main` | [`results/summary.md`](results/summary.md) |

@@ -4,6 +4,7 @@ function results = FOPID_conventional(gain_set)
 %   results = FOPID_CONVENTIONAL()          one gain set per experiment (default; every
 %                                           reported result uses these)
 %   results = FOPID_CONVENTIONAL('shared')  one gain set for both experiments
+%   results = FOPID_CONVENTIONAL('table')   gains fitted to the paper's Tables 3 and 4
 %
 %   Jiang, Zhang & Liu, "Trajectory tracking control of a 6-DOF robotic arm
 %   based on improved FOPID", Int. J. Dyn. Control 13:137 (2025): the
@@ -31,6 +32,12 @@ function results = FOPID_conventional(gain_set)
 %   FOPSO_GWO_CC).  They show the published curves are attainable; they
 %   need not be the authors' gains.
 %
+%   'table': gains fitted to the paper's Tables 3 and 4 instead of its
+%   curves (repository: tools/fit_table_gains.m), one set per experiment.
+%   Every table metric, the sine torque included, comes within 4 % of the
+%   paper's value; the responses then follow the published curves less
+%   closely, because the paper's tables disagree with its own figures.
+%
 %   results: gains (.step, .sine), step and sine runs (t, r, q, u on the
 %   0.01 s grid), step_metrics, sine_metrics, and summary = [overshoot,
 %   adjustment time, peak time, sine MSE, sine sum |tau|].
@@ -49,13 +56,17 @@ switch lower(gain_set)
     case 'separate'
         gains.step = fopid_gains('step');
         gains.sine = fopid_gains('sine');
-        label = 'one gain set per experiment';
+        label = 'gains identified from its FOPID curves, one set per experiment';
     case 'shared'
         gains.step = fopid_gains('shared');
         gains.sine = gains.step;
-        label = 'one gain set for both experiments';
+        label = 'gains identified from its FOPID curves, one set for both experiments';
+    case 'table'
+        gains.step = fopid_gains('table_step');
+        gains.sine = fopid_gains('table_sine');
+        label = 'gains fitted to the paper''s Tables 3 and 4, one set per experiment';
     otherwise
-        error('FOPID_conventional:gains', 'gain_set must be ''separate'' or ''shared''');
+        error('FOPID_conventional:gains', 'gain_set must be ''separate'', ''shared'' or ''table''');
 end
 
 P = arm_parameters();
@@ -65,7 +76,7 @@ ms = step_metrics(step);
 mn = sine_metrics(sine);
 summary = [ms.mean, mn.mean];
 
-fprintf('\nFOPID on the paper''s arm (gains identified from its FOPID curves, %s)\n', label);
+fprintf('\nFOPID on the paper''s arm (%s)\n', label);
 print_metrics({'Paper, Tables 3 and 4', [31.2 1.89 1.33 0.88e-2 2.5686e4]
                'This simulation',       summary});
 print_per_joint(ms, mn);
@@ -106,6 +117,24 @@ switch set
         g.Kd     = [49.95111633 645.0353382 591.4914619 0.4691240383 1.473705321 0.1510568454]';
         g.lambda = [1.662623676 0.6526495045 1.95 0.3800523434 0.7206369078 0.05006636685]';
         g.mu     = [1.425361662 0.5509011254 0.3845477049 1.453723122 0.7627629958 1.817543914]';
+    case 'table_step'
+        % fitted to the paper's Table 3 (repository: tools/fit_table_gains.m):
+        %   difference to the table: overshoot -0.2 %, adjustment time -1.0 %, peak time -0.4 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.111 0.030 0.036 0.039 0.134 0.049 (mean 0.066)
+        g.Kp     = [0.0726716506 0.0008032584069 162.6435932 96.18511154 0.03043655715 42.53066185]';
+        g.Ki     = [497.1617953 902.9688649 33.0192936 5.537714495e-05 3.647945877 772.5041199]';
+        g.Kd     = [98.58027759 646.5258216 423.6556653 0.5457432347 0.6691814401 0.5729749254]';
+        g.lambda = [0.3754040622 0.2611844844 0.8039260167 1.723889285 0.07006399855 1.651613513]';
+        g.mu     = [1.068451924 0.5363865362 0.4470969717 0.9252874564 1.002307105 1.51263575]';
+    case 'table_sine'
+        % fitted to the paper's Table 4 (repository: tools/fit_table_gains.m):
+        %   difference to the table: MSE -1.1 %, sum |tau| -2.7 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.088 0.171 0.085 0.031 0.152 0.020 (mean 0.091)
+        g.Kp     = [321.7752078 0.1231100107 0.05836118968 859.152216 9.142294228 746.1960559]';
+        g.Ki     = [37.32154111 1052.933141 108.2221626 0.06956013386 2.106717055 462.4845256]';
+        g.Kd     = [154.3270594 32.1043395 388.530668 0.1246469781 3.789108757 0.4865877342]';
+        g.lambda = [1.880114215 0.05 1.819921257 0.7963817842 1.834408652 1.066205993]';
+        g.mu     = [0.6461293791 0.06952214393 0.8732949818 1.762281308 0.9733297157 0.8735492287]';
 end
 end
 

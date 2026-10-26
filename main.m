@@ -282,13 +282,24 @@ for i = 1:numel(props)
     end
 end
 out('\n');
-out('PID, FOPID, FBPA-FOPID: reproductions, with the gains that make the simulation match each\n');
-out('controller''s published curves (Sect. 6); the paper publishes no gains. PSO-FOPID and\n');
-out('the FOPSO-GWO variants: tuned by their optimisers with the same cost, budget and starting\n');
-out('swarm.\n');
-out('The paper''s torque column is not a reproducible target: it is a permutation of its own\n');
-out('Fig. 19 and its torque curves are numerical artefacts (Sect. 7; docs/audit_report.md,\n');
-out('3.3-3.4).\n');
+if strcmp(mode, 'table')
+    out('PID, FOPID: reproductions with the gains fitted to this table (every value within 4 %%\n');
+    out('of the paper''s), as close to the published curves as that allows (Sect. 6). FBPA-FOPID:\n');
+    out('the reproduction with the gains that make the simulation match its published curves. The\n');
+    out('paper publishes no gains. PSO-FOPID and the FOPSO-GWO variants: tuned by their optimisers\n');
+    out('with the same cost, budget and starting swarm.\n');
+    out('The paper''s torque column is a permutation of its own Fig. 19, whose torque curves are\n');
+    out('numerical artefacts (Sect. 7; docs/audit_report.md, 3.3-3.4). Matching it is possible, but\n');
+    out('takes PID and FOPID gains whose sine responses follow the published curves less closely.\n');
+else
+    out('PID, FOPID, FBPA-FOPID: reproductions, with the gains that make the simulation match each\n');
+    out('controller''s published curves (Sect. 6); the paper publishes no gains. PSO-FOPID and\n');
+    out('the FOPSO-GWO variants: tuned by their optimisers with the same cost, budget and starting\n');
+    out('swarm.\n');
+    out('The paper''s torque column is not a reproducible target: it is a permutation of its own\n');
+    out('Fig. 19 and its torque curves are numerical artefacts (Sect. 7; docs/audit_report.md,\n');
+    out('3.3-3.4).\n');
+end
 
 % ---- 2. the proposed controller against FBPA-FOPID and PSO-FOPID ---------
 prop = '';

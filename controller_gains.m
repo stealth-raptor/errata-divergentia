@@ -139,6 +139,42 @@ switch [upper(controller) '/' lower(experiment)]
         gains.Kd     = [169.7245658 1543.395685 520.1945999 5.553126174 0.1540965712 186.6467437]';
         gains.lambda = [1.591565168 1.090930414 1.948322993 1.307296612 1.391655871 1.94005557]';
         gains.mu     = [0.8397908885 0.4538816423 0.7757818084 1.405946266 1.910186661 0.5412488322]';
+    case 'PID/table_step'
+        % fitted to the paper's Table 3 (tools/fit_table_gains.m):
+        %   difference to the table: overshoot -3.9 %, adjustment time -4.0 %, peak time +2.0 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.037 0.069 0.051 0.059 0.418 0.071 (mean 0.118)
+        gains.Kp     = [19.34327834 1210.762265 156.0654187 65.82314556 31.90453071 212.2560391]';
+        gains.Ki     = [7.239556301 5088.68857 32.81099318 38.4011206 1.301806398 138.8076382]';
+        gains.Kd     = [12.7010959 191.5807365 115.7247296 1.664349626 0.5872134219 0.596929455]';
+        gains.lambda = [1 1 1 1 1 1]';
+        gains.mu     = [1 1 1 1 1 1]';
+    case 'PID/table_sine'
+        % fitted to the paper's Table 4 (tools/fit_table_gains.m):
+        %   difference to the table: MSE -4.0 %, sum |tau| -3.8 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.363 0.089 0.141 0.035 0.203 0.025 (mean 0.143)
+        gains.Kp     = [907.6019414 3353.99439 946.3752292 0.3775786114 5.15171528 1.311465035]';
+        gains.Ki     = [84.19358885 82.93371574 0.001753666517 96.92638262 17.47318547 104.8662226]';
+        gains.Kd     = [0.7071407657 23.42805871 85.06631638 190.1476352 3.85696802 7.442072306]';
+        gains.lambda = [1 1 1 1 1 1]';
+        gains.mu     = [1 1 1 1 1 1]';
+    case 'FOPID/table_step'
+        % fitted to the paper's Table 3 (tools/fit_table_gains.m):
+        %   difference to the table: overshoot -0.2 %, adjustment time -1.0 %, peak time -0.4 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.111 0.030 0.036 0.039 0.134 0.049 (mean 0.066)
+        gains.Kp     = [0.0726716506 0.0008032584069 162.6435932 96.18511154 0.03043655715 42.53066185]';
+        gains.Ki     = [497.1617953 902.9688649 33.0192936 5.537714495e-05 3.647945877 772.5041199]';
+        gains.Kd     = [98.58027759 646.5258216 423.6556653 0.5457432347 0.6691814401 0.5729749254]';
+        gains.lambda = [0.3754040622 0.2611844844 0.8039260167 1.723889285 0.07006399855 1.651613513]';
+        gains.mu     = [1.068451924 0.5363865362 0.4470969717 0.9252874564 1.002307105 1.51263575]';
+    case 'FOPID/table_sine'
+        % fitted to the paper's Table 4 (tools/fit_table_gains.m):
+        %   difference to the table: MSE -1.1 %, sum |tau| -2.7 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.088 0.171 0.085 0.031 0.152 0.020 (mean 0.091)
+        gains.Kp     = [321.7752078 0.1231100107 0.05836118968 859.152216 9.142294228 746.1960559]';
+        gains.Ki     = [37.32154111 1052.933141 108.2221626 0.06956013386 2.106717055 462.4845256]';
+        gains.Kd     = [154.3270594 32.1043395 388.530668 0.1246469781 3.789108757 0.4865877342]';
+        gains.lambda = [1.880114215 0.05 1.819921257 0.7963817842 1.834408652 1.066205993]';
+        gains.mu     = [0.6461293791 0.06952214393 0.8732949818 1.762281308 0.9733297157 0.8735492287]';
     otherwise
         error('controller_gains:name', 'unknown controller/experiment ''%s/%s''', controller, experiment);
 end

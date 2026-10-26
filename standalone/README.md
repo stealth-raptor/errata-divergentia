@@ -43,6 +43,19 @@ The PID and FOPID files have a second gain set: `PID_conventional('shared')`,
 `FOPID_conventional('shared')` and `FBPA_FOPID('shared')` use one gain set for both
 experiments instead of one per experiment.
 
+**Gains fitted to the paper's tables.** `PID_conventional('table')` and
+`FOPID_conventional('table')` use PID and FOPID gains fitted to the paper's Tables 3 and 4
+(repository: `tools/fit_table_gains.m`; README, Sect. 6, 5.4). Every metric of the tables,
+the sine torque included, comes within 4 % of the paper's value:
+
+| | Overshoot | Adjustment time | Peak time | Sine MSE | Sine Σ\|τ\| |
+|---|---:|---:|---:|---:|---:|
+| PID | −3.9 % | −4.0 % | +2.0 % | −4.0 % | −3.8 % |
+| FOPID | −0.2 % | −1.0 % | −0.4 % | −1.1 % | −2.7 % |
+
+These gains follow the paper's curves less closely than the default ones, because the paper's
+tables disagree with its own figures.
+
 ### Re-running the optimisers
 
 ```matlab

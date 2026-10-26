@@ -4,6 +4,7 @@ function results = PID_conventional(gain_set)
 %   results = PID_CONVENTIONAL()          one gain set per experiment (default; every
 %                                         reported result uses these)
 %   results = PID_CONVENTIONAL('shared')  one gain set for both experiments
+%   results = PID_CONVENTIONAL('table')   gains fitted to the paper's Tables 3 and 4
 %
 %   Jiang, Zhang & Liu, "Trajectory tracking control of a 6-DOF robotic arm
 %   based on improved FOPID", Int. J. Dyn. Control 13:137 (2025): the
@@ -27,6 +28,12 @@ function results = PID_conventional(gain_set)
 %   show the published curves are attainable; they need not be the
 %   authors' gains.
 %
+%   'table': gains fitted to the paper's Tables 3 and 4 instead of its
+%   curves (repository: tools/fit_table_gains.m), one set per experiment.
+%   Every table metric, the sine torque included, comes within 4 % of the
+%   paper's value; the responses then follow the published curves less
+%   closely, because the paper's tables disagree with its own figures.
+%
 %   results: gains (.step, .sine), step and sine runs (t, r, q, u on the
 %   0.01 s grid), step_metrics, sine_metrics, and summary = [overshoot,
 %   adjustment time, peak time, sine MSE, sine sum |tau|].
@@ -43,13 +50,17 @@ switch lower(gain_set)
     case 'separate'
         gains.step = pid_gains('step');
         gains.sine = pid_gains('sine');
-        label = 'one gain set per experiment';
+        label = 'gains identified from its PID curves, one set per experiment';
     case 'shared'
         gains.step = pid_gains('shared');
         gains.sine = gains.step;
-        label = 'one gain set for both experiments';
+        label = 'gains identified from its PID curves, one set for both experiments';
+    case 'table'
+        gains.step = pid_gains('table_step');
+        gains.sine = pid_gains('table_sine');
+        label = 'gains fitted to the paper''s Tables 3 and 4, one set per experiment';
     otherwise
-        error('PID_conventional:gains', 'gain_set must be ''separate'' or ''shared''');
+        error('PID_conventional:gains', 'gain_set must be ''separate'', ''shared'' or ''table''');
 end
 
 P = arm_parameters();
@@ -59,7 +70,7 @@ ms = step_metrics(step);
 mn = sine_metrics(sine);
 summary = [ms.mean, mn.mean];
 
-fprintf('\nPID on the paper''s arm (gains identified from its PID curves, %s)\n', label);
+fprintf('\nPID on the paper''s arm (%s)\n', label);
 print_metrics({'Paper, Tables 3 and 4', [54.6 2.44 1.39 2.27e-2 3.7422e4]
                'This simulation',       summary});
 print_per_joint(ms, mn);
@@ -94,6 +105,20 @@ switch set
         g.Kp = [75.45276223 1504.044829 696.2823467 69.66649056 4.7024463 6389.310235]';
         g.Ki = [565.531096 3041.237729 71.11348748 188.2343736 0.6565698329 1305.181802]';
         g.Kd = [137.1522896 102.8120137 113.9384517 1.02441153 0.4189171128 10.20444477]';
+    case 'table_step'
+        % fitted to the paper's Table 3 (repository: tools/fit_table_gains.m):
+        %   difference to the table: overshoot -3.9 %, adjustment time -4.0 %, peak time +2.0 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.037 0.069 0.051 0.059 0.418 0.071 (mean 0.118)
+        g.Kp = [19.34327834 1210.762265 156.0654187 65.82314556 31.90453071 212.2560391]';
+        g.Ki = [7.239556301 5088.68857 32.81099318 38.4011206 1.301806398 138.8076382]';
+        g.Kd = [12.7010959 191.5807365 115.7247296 1.664349626 0.5872134219 0.596929455]';
+    case 'table_sine'
+        % fitted to the paper's Table 4 (repository: tools/fit_table_gains.m):
+        %   difference to the table: MSE -4.0 %, sum |tau| -3.8 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.363 0.089 0.141 0.035 0.203 0.025 (mean 0.143)
+        g.Kp = [907.6019414 3353.99439 946.3752292 0.3775786114 5.15171528 1.311465035]';
+        g.Ki = [84.19358885 82.93371574 0.001753666517 96.92638262 17.47318547 104.8662226]';
+        g.Kd = [0.7071407657 23.42805871 85.06631638 190.1476352 3.85696802 7.442072306]';
 end
 end
 
