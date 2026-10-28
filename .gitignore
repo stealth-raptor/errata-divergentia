@@ -9,3 +9,11 @@ octave-workspace
 *.mexmaca64
 *.mexw64
 *.o
+# LaTeX build files of the paper draft
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.synctex.gz
+paper/build.log
