@@ -2,7 +2,7 @@
 
 **Branch `table-match`: the MATLAB version of the work, for review, with every method also
 isolated in a file of its own ([`standalone/`](standalone/README.md)), and PID / FOPID gains
-that reproduce the paper's Tables 3–4 to within 4 % ([Sect. 6, 5.4](#54-gains-fitted-to-the-papers-tables-maintable)).**
+that reproduce the paper's Tables 3–4 to within 10 % ([Sect. 6, 5.4](#54-gains-fitted-to-the-papers-tables-maintable)).**
 
 Base paper:
 
@@ -377,7 +377,7 @@ No toolbox is used: the original code's `stepinfo` (2 % band) was replaced.
     experiments shared gains, and separate sets fit 15–19 % better;
   * one set for both experiments, `main('shared')`.
 * **A third variant, fitted to the tables (`main('table')`, Sect. 6, 5.4):** PID and FOPID
-  gains whose averaged metrics match the paper's Tables 3–4 to within 4 %, the torque
+  gains whose averaged metrics match the paper's Tables 3–4 to within 10 %, the torque
   included. Unlike the earlier table fit above, they are also kept as close to the published
   curves as the table allows.
 * **Caveat:** the identified gains are not unique. They show the curves are attainable, not
@@ -606,12 +606,15 @@ The gains above follow the paper's **curves**, so their averaged metrics differ 
 paper's **tables** by up to a third (5.1); the tables and the figures disagree with each other
 (5.2). `tools/fit_table_gains.m` re-fits the PID and FOPID gains to the tables instead:
 
-* every metric of the paper's Table 3 (step) or Table 4 (sine) must come within 4 % of the
-  paper's value; among the gains that do, the search keeps those closest to the published
-  curves;
+* every metric of the paper's Table 3 (step) or Table 4 (sine) must come within 10 % of the
+  paper's value (the fit aims at 9 %); among the gains that do, the search keeps those
+  closest to the published curves;
 * the search is CMA-ES, started from the curve-identified gains, one gain set per
   experiment as in the default reproduction;
-* candidates that diverge or are numerically ill-conditioned are rejected, as in the tuning.
+* candidates that diverge or are numerically ill-conditioned are rejected, as in the tuning;
+* for the PID sine fit, candidates whose torque varies more than 1.5 times as much as that of
+  the curve-identified PID are rejected too. Without that limit, the closest fit reached the
+  table's torque by chattering.
 
 `main('table')` uses these gains for PID and FOPID (`results/table_gains/summary.md`), as do
 `PID_conventional('table')` and `FOPID_conventional('table')` in `standalone/`.
@@ -619,27 +622,28 @@ paper's **tables** by up to a third (5.1); the tables and the figures disagree w
 | Controller | Source | Overshoot (%) | Adjustment time (s) | Peak time (s) | Sine MSE (rad²) | Sine Σ\|τ\| (Nm) |
 |---|---|---:|---:|---:|---:|---:|
 | PID | Paper (Tables 3–4) | 54.6 | 2.44 | 1.39 | 2.27e-2 | 3.74e4 |
-| PID | This work, gains fitted to the tables | 52.5 | 2.34 | 1.42 | 2.18e-2 | 3.60e4 |
-| | *Difference* | *−3.9 %* | *−4.0 %* | *+2.0 %* | *−4.0 %* | *−3.8 %* |
+| PID | This work, gains fitted to the tables | 49.7 | 2.66 | 1.46 | 2.07e-2 | 3.41e4 |
+| | *Difference* | *−9.0 %* | *+9.0 %* | *+4.9 %* | *−8.9 %* | *−8.9 %* |
 | FOPID | Paper (Tables 3–4) | 31.2 | 1.89 | 1.33 | 8.80e-3 | 2.57e4 |
-| FOPID | This work, gains fitted to the tables | 31.1 | 1.87 | 1.32 | 8.70e-3 | 2.50e4 |
-| | *Difference* | *−0.2 %* | *−1.0 %* | *−0.4 %* | *−1.1 %* | *−2.7 %* |
+| FOPID | This work, gains fitted to the tables | 29.2 | 1.95 | 1.35 | 8.29e-3 | 2.41e4 |
+| | *Difference* | *−6.4 %* | *+3.1 %* | *+1.6 %* | *−5.8 %* | *−6.1 %* |
 
 What matching the tables costs, as the mean rms difference to the published curves (rad):
 
 | Gains | PID step | PID sine | FOPID step | FOPID sine |
 |---|---:|---:|---:|---:|
 | Identified from the curves (default) | 0.092 | 0.080 | 0.058 | 0.051 |
-| **Fitted to the tables, kept close to the curves** (`main('table')`) | 0.118 | 0.143 | 0.066 | 0.091 |
-| Fitted to the tables alone (the earlier version, D6) | 0.297 | 0.188 | 0.171 | 0.099 |
+| **Fitted to the tables within 10 %, kept close to the curves** (`main('table')`) | 0.093 | 0.103 | **0.054** | 0.079 |
+| Fitted to the tables within 4 %, kept close to the curves (an earlier fit) | 0.118 | 0.143 | 0.066 | 0.091 |
+| Fitted to the tables alone (the earliest version, D6) | 0.297 | 0.188 | 0.171 | 0.099 |
 
-* **The step metrics** match the table with little change to the curves. The largest
-  change is PID joint 5, whose step curve moves away from the paper's (0.42 rad rms).
-* **Matching the torque column moves the sine curves most.** Torque here is 3.6e4 Nm for
-  PID and 2.5e4 Nm for FOPID, about 3.4 and 2.4 times what the curve-identified gains use. The paper's torque column is its own Fig. 19 listed under the wrong controllers
-  (Sect. 10), so these gains reproduce the table's number, not a torque the paper's curves
-  need. With the torque left free, the same fit matches the sine MSE within 4 % at a curve
-  rms of 0.086 (PID) and 0.053 rad (FOPID).
+* **The step responses** match the table and follow the published curves as closely as the
+  curve-identified gains do: for PID, 0.093 against 0.092 rad. For FOPID they are slightly
+  closer, 0.054 against 0.058 rad.
+* **Matching the torque column moves the sine curves most.** Torque here is 3.4e4 Nm for PID
+  and 2.4e4 Nm for FOPID, about 3.3 and 2.3 times what the curve-identified gains use. The
+  paper's torque column is its own Fig. 19 listed under the wrong controllers (Sect. 10),
+  so these gains reproduce the table's number, not a torque that the paper's curves need.
 * **No other result changes.** FBPA-FOPID, the tuned controllers, the whole-controller cost
   and its torque caps all use the curve-identified gain sets, which are unchanged.
 

@@ -46,15 +46,16 @@ experiments instead of one per experiment.
 **Gains fitted to the paper's tables.** `PID_conventional('table')` and
 `FOPID_conventional('table')` use PID and FOPID gains fitted to the paper's Tables 3 and 4
 (repository: `tools/fit_table_gains.m`; README, Sect. 6, 5.4). Every metric of the tables,
-the sine torque included, comes within 4 % of the paper's value:
+the sine torque included, comes within 10 % of the paper's value:
 
 | | Overshoot | Adjustment time | Peak time | Sine MSE | Sine Σ\|τ\| |
 |---|---:|---:|---:|---:|---:|
-| PID | −3.9 % | −4.0 % | +2.0 % | −4.0 % | −3.8 % |
-| FOPID | −0.2 % | −1.0 % | −0.4 % | −1.1 % | −2.7 % |
+| PID | −9.0 % | +9.0 % | +4.9 % | −8.9 % | −8.9 % |
+| FOPID | −6.4 % | +3.1 % | +1.6 % | −5.8 % | −6.1 % |
 
-These gains follow the paper's curves less closely than the default ones, because the paper's
-tables disagree with its own figures.
+The step responses follow the paper's curves as closely as the default gains do. The sine
+responses follow them less closely, because the paper's tables disagree with its own figures,
+most of all on the torque.
 
 ### Re-running the optimisers
 

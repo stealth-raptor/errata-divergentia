@@ -34,7 +34,7 @@ function results = FOPID_conventional(gain_set)
 %
 %   'table': gains fitted to the paper's Tables 3 and 4 instead of its
 %   curves (repository: tools/fit_table_gains.m), one set per experiment.
-%   Every table metric, the sine torque included, comes within 4 % of the
+%   Every table metric, the sine torque included, comes within 10 % of the
 %   paper's value; the responses then follow the published curves less
 %   closely, because the paper's tables disagree with its own figures.
 %
@@ -118,23 +118,23 @@ switch set
         g.lambda = [1.662623676 0.6526495045 1.95 0.3800523434 0.7206369078 0.05006636685]';
         g.mu     = [1.425361662 0.5509011254 0.3845477049 1.453723122 0.7627629958 1.817543914]';
     case 'table_step'
-        % fitted to the paper's Table 3 (repository: tools/fit_table_gains.m):
-        %   difference to the table: overshoot -0.2 %, adjustment time -1.0 %, peak time -0.4 %
-        %   rms vs the published curves, joints 1-6 [rad]: 0.111 0.030 0.036 0.039 0.134 0.049 (mean 0.066)
-        g.Kp     = [0.0726716506 0.0008032584069 162.6435932 96.18511154 0.03043655715 42.53066185]';
-        g.Ki     = [497.1617953 902.9688649 33.0192936 5.537714495e-05 3.647945877 772.5041199]';
-        g.Kd     = [98.58027759 646.5258216 423.6556653 0.5457432347 0.6691814401 0.5729749254]';
-        g.lambda = [0.3754040622 0.2611844844 0.8039260167 1.723889285 0.07006399855 1.651613513]';
-        g.mu     = [1.068451924 0.5363865362 0.4470969717 0.9252874564 1.002307105 1.51263575]';
+        % fitted to the paper's Table 3, every metric within 10 % (repository: tools/fit_table_gains.m):
+        %   difference to the table: overshoot -6.4 %, adjustment time +3.1 %, peak time +1.6 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.154 0.022 0.035 0.020 0.042 0.052 (mean 0.054)
+        g.Kp     = [0.2428467899 0.0001745928079 373.7463299 116.4299858 0.349293042 922.5859329]';
+        g.Ki     = [2227.115749 2568.528305 25.06357956 6.348857e-05 2.424867885 97.41858185]';
+        g.Kd     = [248.5994423 264.0250904 237.1439936 2.120218293 0.536405423 0.4603233828]';
+        g.lambda = [0.7548443081 0.310490346 1.195627167 1.656903638 0.05 1.818377887]';
+        g.mu     = [0.9877559563 0.853443053 0.6901203267 1.267785367 0.833341585 1.584901476]';
     case 'table_sine'
-        % fitted to the paper's Table 4 (repository: tools/fit_table_gains.m):
-        %   difference to the table: MSE -1.1 %, sum |tau| -2.7 %
-        %   rms vs the published curves, joints 1-6 [rad]: 0.088 0.171 0.085 0.031 0.152 0.020 (mean 0.091)
-        g.Kp     = [321.7752078 0.1231100107 0.05836118968 859.152216 9.142294228 746.1960559]';
-        g.Ki     = [37.32154111 1052.933141 108.2221626 0.06956013386 2.106717055 462.4845256]';
-        g.Kd     = [154.3270594 32.1043395 388.530668 0.1246469781 3.789108757 0.4865877342]';
-        g.lambda = [1.880114215 0.05 1.819921257 0.7963817842 1.834408652 1.066205993]';
-        g.mu     = [0.6461293791 0.06952214393 0.8732949818 1.762281308 0.9733297157 0.8735492287]';
+        % fitted to the paper's Table 4, every metric within 10 % (repository: tools/fit_table_gains.m):
+        %   difference to the table: MSE -5.8 %, sum |tau| -6.1 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.078 0.070 0.083 0.037 0.181 0.023 (mean 0.079)
+        g.Kp     = [394.5555484 0.003395151533 0.2309153858 68.93418034 30.13204845 24.15012276]';
+        g.Ki     = [150.938369 6609.911518 279.9029384 0.02807010791 27.56053449 104.7784735]';
+        g.Kd     = [37.61202758 62.21387153 333.4871648 8.431156516 0.4761258611 2.351305179]';
+        g.lambda = [1.556452311 0.2470736675 1.95 1.074198346 1.901656402 1.017116354]';
+        g.mu     = [1.184094273 1.002370887 0.8109766075 1.338965676 1.38206359 1.043985186]';
 end
 end
 
