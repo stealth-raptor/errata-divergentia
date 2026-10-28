@@ -4,9 +4,8 @@ Reads what the MATLAB code stored and simulates nothing:
   results/table_gains/simulation_results.mat   written by main('table'):
       the trajectories of PID and FOPID (gains fitted to the reference
       paper's Tables 3-4) and of the FOPSO-GWO-tuned FOPID
-  results/optimizer_runs/fopso_gwo_*.mat        written by tools/compare_optimizers.m
-  results/ablation_runs/fopso*_*.mat            written by tools/ablate_optimizers.m:
-      the best-cost history and final cost of every tuning run
+  results/optimizer_runs/fopso_gwo_whole_*.mat  written by tools/compare_optimizers.m:
+      the best-fitness history of the eight tuning runs
 
 Run from the repository root:  python3 paper/figures/make_figures.py
 Needs numpy, scipy and matplotlib.
@@ -28,12 +27,6 @@ CONTROLLERS = [('PID', 'PID', '#CC79A7', (0, (1, 1))),
                ('FOPID', 'FOPID', '#0072B2', (0, (4, 1.5))),
                ('FOPSO_GWO', 'FOPSO-GWO-FOPID', '#D55E00', '-')]
 GWO = '#D55E00'
-
-# the ablation of Table 6 in main.tex: stored run prefix, label
-VARIANTS = [('ablation_runs/fopso_c2', 'FO-PSO\n(no GWO term)'),
-            ('ablation_runs/fopso_gwo_c2', 'c = 2/2/2,\na 0.9→0.4'),
-            ('ablation_runs/fopso_gwo_v1', 'c = 1/1/1,\na 0.9→0.4'),
-            ('optimizer_runs/fopso_gwo', 'c = 1.5/1.5/1,\na = 0.9 (final)')]
 
 plt.rcParams.update({'font.family': 'serif', 'font.size': 8, 'axes.labelsize': 8,
                      'legend.fontsize': 7, 'xtick.labelsize': 7, 'ytick.labelsize': 7,
@@ -92,39 +85,26 @@ def runs(prefix, cost, seeds):
 
 
 def convergence(filename):
-    """(a) J_W against evaluations, eight seeds; (b) the ablation under J_T, seeds 1-4."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.6, 2.7), gridspec_kw={'width_ratios': [1, 1.1]})
+    """Fitness against cost evaluations: the eight runs and the reported (best) one."""
+    fig, ax = plt.subplots(figsize=(4.4, 2.6))
     rr = runs('optimizer_runs/fopso_gwo', 'whole', range(1, 9))
     K = len(rr[0]['history'])
     evals = 30 + (rr[0]['evaluations'] - 30) / K * np.arange(1, K + 1)
+    best = min(range(len(rr)), key=lambda i: rr[i]['cost'])
     for i, r in enumerate(rr):
-        ax1.plot(evals, r['history'], color=GWO, lw=0.6, alpha=0.45,
-                 label='single runs' if i == 0 else None)
-    ax1.plot(evals, np.median(np.vstack([r['history'] for r in rr]), 0), color=GWO, lw=1.8,
-             label='median')
-    ax1.set_yscale('log')
-    ax1.set_yticks([1, 2, 5, 10, 20, 40])
-    plain_log_axis(ax1)
-    ax1.set_xlim(0, 3030)
-    ax1.set_xlabel('cost evaluations')
-    ax1.set_ylabel('best cost $J_W$')
-    ax1.set_title('(a) convergence under $J_W$, seeds 1-8', fontsize=8, pad=2)
-    ax1.grid(True, which='both', lw=0.3, color='#dddddd')
-    ax1.legend(frameon=False, loc='upper right')
-
-    for v, (prefix, label) in enumerate(VARIANTS):
-        final = np.array([r['cost'] for r in runs(prefix, 'fbpa', range(1, 5))])
-        colour = GWO if v == len(VARIANTS) - 1 else '#555555'
-        ax2.scatter(v + np.linspace(-0.08, 0.08, len(final)), final, s=12, color=colour,
-                    alpha=0.85, lw=0)
-        ax2.plot([v - 0.18, v + 0.18], [final.mean()] * 2, color=colour, lw=1.6)
-    ax2.set_xticks(range(len(VARIANTS)))
-    ax2.set_xticklabels([label for _, label in VARIANTS], fontsize=6.5)
-    ax2.set_xlim(-0.5, len(VARIANTS) - 0.5)
-    ax2.set_ylabel('final cost $J_T$')
-    ax2.set_title('(b) ablation under $J_T$, seeds 1-4 (bar: mean)', fontsize=8, pad=2)
-    ax2.grid(True, axis='y', lw=0.3, color='#dddddd')
-    fig.tight_layout(w_pad=1.2)
+        if i != best:
+            ax.plot(evals, r['history'], color='#999999', lw=0.6,
+                    label='other runs' if i == 0 else None)
+    ax.plot(evals, rr[best]['history'], color=GWO, lw=1.6, label='best run')
+    ax.set_yscale('log')
+    ax.set_yticks([1, 2, 5, 10, 20, 40])
+    plain_log_axis(ax)
+    ax.set_xlim(0, 3030)
+    ax.set_xlabel('fitness evaluations')
+    ax.set_ylabel('best fitness $J$')
+    ax.grid(True, which='both', lw=0.3, color='#dddddd')
+    ax.legend(frameon=False, loc='upper right')
+    fig.tight_layout()
     fig.savefig(os.path.join(OUT, filename))
     plt.close(fig)
 
