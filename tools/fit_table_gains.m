@@ -28,7 +28,10 @@ function fit = fit_table_gains(controller, experiment, opts)
 %   sum |tau| free; true: it is fitted too), MaxEvals (3000), Sigma0 (0.08),
 %   RandomSeed (1), Verbose (true), Start (a gain struct to start the
 %   search from, e.g. an earlier fit, instead of the curve-identified gains;
-%   the search box and the curve reference stay those of the latter).
+%   the search box and the curve reference stay those of the latter),
+%   MaxTV (Inf: a limit on the total variation of tau at the control rate,
+%   mean over the joints, which rules out gains that reach the table's
+%   torque by chattering).
 %
 %   fit: gains, metrics (the table's metrics, averaged over the joints),
 %   target, error (relative, per metric), curve_rms (per joint, rad),
@@ -40,7 +43,7 @@ function fit = fit_table_gains(controller, experiment, opts)
 
 if nargin < 3, opts = struct(); end
 d = struct('Tol', 0.04, 'Decades', 2, 'Torque', false, 'MaxEvals', 3000, ...
-           'Sigma0', 0.08, 'RandomSeed', 1, 'Verbose', true, 'Start', []);
+           'Sigma0', 0.08, 'RandomSeed', 1, 'Verbose', true, 'Start', [], 'MaxTV', Inf);
 for f = fieldnames(d)'
     if ~isfield(opts, f{1}), opts.(f{1}) = d.(f{1}); end
 end
@@ -80,8 +83,8 @@ if ~isempty(opts.Start)
     z0 = min(max((xs - lo) ./ (hi - lo), 0), 1);
 end
 
-[~, m0, rms0] = evaluate(P, g0, experiment, paper, idx, target, opts.Tol, 1);
-cost = @(z) evaluate(P, decode(z), experiment, paper, idx, target, opts.Tol, mean(rms0));
+[~, m0, rms0] = evaluate(P, g0, experiment, paper, idx, target, opts.Tol, 1, Inf);
+cost = @(z) evaluate(P, decode(z), experiment, paper, idx, target, opts.Tol, mean(rms0), opts.MaxTV);
 
 if opts.Verbose
     fprintf('%s %s: start %s, table %s, curve rms %.4f rad\n', controller, experiment, ...
@@ -92,7 +95,7 @@ copts = struct('MaxEvals', opts.MaxEvals, 'Sigma0', opts.Sigma0, 'Mean0', z0, ..
 [z, info] = cmaes(cost, n, copts);
 
 g = decode(z);
-[J, m, rms, tv] = evaluate(P, g, experiment, paper, idx, target, opts.Tol, mean(rms0));
+[J, m, rms, tv] = evaluate(P, g, experiment, paper, idx, target, opts.Tol, mean(rms0), opts.MaxTV);
 fit = struct('controller', controller, 'experiment', experiment, 'gains', g, ...
              'metrics', m, 'target', target, 'error', m ./ target - 1, ...
              'curve_rms', rms, 'curve_rms_start', rms0, 'tv', tv, 'cost', J, ...
@@ -111,14 +114,23 @@ end
 end
 
 % ------------------------------------------------------------------------
-function [J, m, rms, tv] = evaluate(P, g, experiment, paper, idx, target, tol, rms_ref)
+function [J, m, rms, tv] = evaluate(P, g, experiment, paper, idx, target, tol, rms_ref, max_tv)
 %EVALUATE  Table penalty plus relative curve rms of one gain set.
 o = struct('abort_err', 5);
-out = simulate_closed_loop(P, g, experiment, o);
 m = nan(1, numel(idx));  rms = nan(6, 1);  tv = NaN;
-if out.diverged
-    J = 1e3 + 1e3 * (1 - out.t(end) / 5);
+if isfinite(max_tv)
+    o.log_dt = 1e-3;                     % torque at the control rate, metrics on 0.01 s
+end
+full = simulate_closed_loop(P, g, experiment, o);
+if full.diverged
+    J = 1e3 + 1e3 * (1 - full.t(end) / 5);
     return;
+end
+out = full;
+if isfinite(max_tv)
+    k = 1:10:numel(full.t);
+    out.t = full.t(k);  out.r = full.r(:, k);  out.q = full.q(:, k);  out.u = full.u(:, k);
+    tv = mean(sum(abs(diff(full.u, 1, 2)), 2));
 end
 switch experiment
     case 'step', s = performance_metrics(out, 'step');  all5 = [s.mean, NaN, NaN];
@@ -128,7 +140,9 @@ m = all5(idx);
 rms = sqrt(mean((out.q - paper.q).^2, 2));
 err = m ./ target - 1;
 J = 100 * sum(max(0, abs(err) - tol).^2) + 0.01 * mean(rms) / rms_ref;
-if nargout > 3
+if isfinite(max_tv)
+    J = J + 100 * max(0, tv / max_tv - 1)^2;
+elseif nargout > 3
     fast = struct('log_dt', 1e-3);
     full = simulate_closed_loop(P, g, experiment, fast);
     tv = mean(sum(abs(diff(full.u, 1, 2)), 2));
@@ -139,7 +153,7 @@ for f = {'Kp', 'Ki', 'Kd', 'lambda', 'mu'}
     g2.(f{1}) = g.(f{1}) * (1 + 1e-10);
 end
 out2 = simulate_closed_loop(P, g2, experiment, o);
-if out2.diverged || max(abs(out2.q(:) - out.q(:))) > 1e-6
+if out2.diverged || max(abs(out2.q(:) - full.q(:))) > 1e-6
     J = J + 10;
 end
 end
