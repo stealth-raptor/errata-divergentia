@@ -12,6 +12,7 @@
 \usepackage{booktabs}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage[section]{placeins}   % floats stay in their own section
 
 \newcommand{\ITAE}{\mathrm{ITAE}}
 \newcommand{\MSE}{\mathrm{MSE}}
@@ -139,7 +140,7 @@ torques. The model is computed by the recursive Newton--Euler algorithm~\cite{lu
 integrated with a fourth-order Runge--Kutta method with a step of 1\,ms. As in the test
 conditions, gravity and friction are not considered.
 
-\begin{table}[t]
+\begin{table}[!htb]
 \caption{Parameters of the robotic arm (standard DH parameters, link masses and principal
 inertias)}
 \label{tab:arm}
@@ -229,7 +230,7 @@ joint and an overshoot of at most 33.1\,\% on every joint. Unstable or numerical
 ill-conditioned candidates are given a large fitness value. The procedure is summarised in Algorithm~\ref{alg:fopsogwo}, and the parameter
 settings are listed in Table~\ref{tab:settings}.
 
-\begin{algorithm}[t]
+\begin{algorithm}[!htb]
 \caption{FOPSO-GWO for FOPID parameter tuning}
 \label{alg:fopsogwo}
 \begin{algorithmic}[1]
@@ -249,7 +250,7 @@ settings are listed in Table~\ref{tab:settings}.
 \end{algorithmic}
 \end{algorithm}
 
-\begin{table}[t]
+\begin{table}[!htb]
 \caption{Parameter settings of FOPSO-GWO}
 \label{tab:settings}
 \centering
@@ -296,14 +297,14 @@ run, the fitness decreases from 35.4 for the initial FOPID controller to 1.42 wi
 fitness evaluations. All eight runs converge stably, to values between 1.42 and 2.16. The
 tuned parameters are listed in Table~\ref{tab:gains}.
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=0.7\textwidth]{figures/fig_convergence.pdf}
 \caption{Convergence curves of FOPSO-GWO (eight independent runs)}
 \label{fig:convergence}
 \end{figure}
 
-\begin{table}[t]
+\begin{table}[!htb]
 \caption{FOPID parameters tuned by FOPSO-GWO}
 \label{tab:gains}
 \centering
@@ -320,6 +321,7 @@ $\mu$     & 0.8239 & 0.5172 & 0.5289 & 0.9728 & 0.7322 & 1.637\\
 \end{tabular}
 \end{table}
 
+\FloatBarrier
 \subsection{Step Response}
 
 Figure~\ref{fig:step} shows the step responses of the six joints, and Table~\ref{tab:step}
@@ -333,7 +335,7 @@ the step response is reduced from 4.34 (PID) and 2.16 (FOPID) to 1.19. The peak 
 torque at the step instant is reduced from about $2.2 \times 10^5$\,N\,m to
 $4.6 \times 10^4$\,N\,m.
 
-\begin{table}[t]
+\begin{table}[!htb]
 \caption{Average performance indices of the three controllers with step response}
 \label{tab:step}
 \centering
@@ -348,13 +350,14 @@ FOPSO-GWO-FOPID & \textbf{13.6} & \textbf{1.35} & \textbf{1.11} & \textbf{1.19}\
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_step.pdf}
 \caption{Position tracking of joints 1--6 with step response}
 \label{fig:step}
 \end{figure}
 
+\FloatBarrier
 \subsection{Sinusoidal Response}
 
 Figure~\ref{fig:sine} shows the tracking errors of the six joints under the sinusoidal input,
@@ -365,7 +368,7 @@ is $1.88 \times 10^{-3}$\,rad$^2$, which is 91.2\,\% lower than that of PID cont
 $9.61 \times 10^3$\,N\,m. FOPSO-GWO-FOPID therefore tracks the sinusoidal trajectory more
 accurately with a smaller control input.
 
-\begin{table}[t]
+\begin{table}[!htb]
 \caption{Tracking performance indices of the three controllers with sine response}
 \label{tab:sine}
 \centering
@@ -380,7 +383,7 @@ FOPSO-GWO-FOPID & $\mathbf{1.88 \times 10^{-3}}$ & $\mathbf{9.61 \times 10^{3}}$
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_sine_error.pdf}
 \caption{Tracking error of joints 1--6 with sine response}
