@@ -157,9 +157,8 @@ J = 100 * sum(max(0, abs(err) - tol).^2) + 0.01 * mean(rms) / rms_ref;
 if isfinite(max_tv)
     J = J + 100 * max(0, tv / max_tv - 1)^2;
 elseif nargout > 3
-    fast = struct('log_dt', 1e-3);
-    full = simulate_closed_loop(P, g, experiment, fast);
-    tv = mean(sum(abs(diff(full.u, 1, 2)), 2));
+    fast = simulate_closed_loop(P, g, experiment, struct('log_dt', 1e-3));
+    tv = mean(sum(abs(diff(fast.u, 1, 2)), 2));
 end
 % numerically ill-conditioned closed loops chatter and do not reproduce
 g2 = g;
