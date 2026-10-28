@@ -214,7 +214,7 @@ if strcmp(mode, 'separate')
     out('    (`controller_gains(name, experiment)`).\n');
 elseif strcmp(mode, 'table')
     out('  * PID and FOPID: gains fitted to the paper''s Tables 3 and 4, every table metric (the\n');
-    out('    sine torque included) within 10 %% of the paper''s value and otherwise as close to the\n');
+    out('    sine torque included) within 7 %% of the paper''s value and otherwise as close to the\n');
     out('    published curves as possible, one set per experiment (`controller_gains(name,\n');
     out('    ''table_step'' | ''table_sine'')`, `tools/fit_table_gains.m`). The paper''s tables\n');
     out('    disagree with its own figures (Sect. 7), so these gains follow the published curves\n');
@@ -283,7 +283,7 @@ for i = 1:numel(props)
 end
 out('\n');
 if strcmp(mode, 'table')
-    out('PID, FOPID: reproductions with the gains fitted to this table (every value within 10 %%\n');
+    out('PID, FOPID: reproductions with the gains fitted to this table (every value within 7 %%\n');
     out('of the paper''s), as close to the published curves as that allows (Sect. 6). FBPA-FOPID:\n');
     out('the reproduction with the gains that make the simulation match its published curves. The\n');
     out('paper publishes no gains. PSO-FOPID and the FOPSO-GWO variants: tuned by their optimisers\n');

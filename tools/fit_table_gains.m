@@ -24,7 +24,7 @@ function fit = fit_table_gains(controller, experiment, opts)
 %   diverge or are numerically ill-conditioned (a relative gain change of
 %   1e-10 moving the response by more than 1e-6 rad) are rejected.
 %
-%   Options: Tol (0.09), Decades (2), Torque (false: the sine fit leaves
+%   Options: Tol (0.065), Decades (2), Torque (false: the sine fit leaves
 %   sum |tau| free; true: it is fitted too), MaxEvals (3000), Sigma0 (0.08),
 %   RandomSeed (1), Verbose (true), Start (a gain struct to start the
 %   search from, e.g. an earlier fit, instead of the curve-identified gains;
@@ -40,23 +40,30 @@ function fit = fit_table_gains(controller, experiment, opts)
 %   CONTROLLER_GAINS.
 %
 %   The sets 'table_step' and 'table_sine' of CONTROLLER_GAINS (every table
-%   value within 10 %) came from these calls, the best of a few random seeds
+%   value within 7 %) came from these calls, the best of a few random seeds
 %   each:
-%     fit_table_gains('PID',   'step', struct('MaxEvals', 8000, 'Sigma0', 0.05, 'RandomSeed', 11))
-%     fit_table_gains('PID',   'sine', struct('Torque', true, 'MaxTV', 7600, ...
-%                     'MaxEvals', 8000, 'Sigma0', 0.05, 'RandomSeed', 21))
-%     fit_table_gains('FOPID', 'step', struct('MaxEvals', 8000, 'Sigma0', 0.05, 'RandomSeed', 11))
-%     fit_table_gains('FOPID', 'sine', struct('Torque', true, ...
+%     a = fit_table_gains('PID',   'step', struct('Tol', 0.09, 'MaxEvals', 8000, ...
+%                         'Sigma0', 0.05, 'RandomSeed', 11));
+%     fit_table_gains('PID', 'step', struct('Start', a.gains, 'MaxEvals', 8000, ...
+%                     'Sigma0', 0.03, 'RandomSeed', 32))
+%     b = fit_table_gains('PID',   'sine', struct('Tol', 0.09, 'Torque', true, ...
+%                         'MaxTV', 7600, 'MaxEvals', 8000, 'Sigma0', 0.05, 'RandomSeed', 21));
+%     fit_table_gains('PID', 'sine', struct('Torque', true, 'MaxTV', 7600, ...
+%                     'Start', b.gains, 'MaxEvals', 8000, 'Sigma0', 0.03, 'RandomSeed', 41))
+%     fit_table_gains('FOPID', 'step', struct('Tol', 0.09, 'MaxEvals', 8000, ...
+%                     'Sigma0', 0.05, 'RandomSeed', 11))
+%     fit_table_gains('FOPID', 'sine', struct('Tol', 0.09, 'Torque', true, ...
 %                     'MaxEvals', 8000, 'Sigma0', 0.05, 'RandomSeed', 11))
-%   (MaxTV 7600 is 1.5 x the total variation of the curve-identified PID; the
-%   best PID fit without it chattered.)  Random numbers differ between
-%   MATLAB and Octave, where these ran, so a re-run finds a similar, not an
-%   identical, gain set.
+%   (the FOPID fits came within 6.4 % at Tol 0.09 already).  MaxTV 7600 is
+%   1.5 x the total variation of the curve-identified PID; the best PID
+%   fit without it chattered.  Random numbers differ between MATLAB and
+%   Octave, where these ran, so a re-run finds a similar, not an identical,
+%   gain set.
 %
 %   See also CONTROLLER_GAINS, PAPER_CURVES, CMAES, PERFORMANCE_METRICS.
 
 if nargin < 3, opts = struct(); end
-d = struct('Tol', 0.09, 'Decades', 2, 'Torque', false, 'MaxEvals', 3000, ...
+d = struct('Tol', 0.065, 'Decades', 2, 'Torque', false, 'MaxEvals', 3000, ...
            'Sigma0', 0.08, 'RandomSeed', 1, 'Verbose', true, 'Start', [], 'MaxTV', Inf);
 for f = fieldnames(d)'
     if ~isfield(opts, f{1}), opts.(f{1}) = d.(f{1}); end

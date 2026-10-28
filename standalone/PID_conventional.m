@@ -30,7 +30,7 @@ function results = PID_conventional(gain_set)
 %
 %   'table': gains fitted to the paper's Tables 3 and 4 instead of its
 %   curves (repository: tools/fit_table_gains.m), one set per experiment.
-%   Every table metric, the sine torque included, comes within 10 % of the
+%   Every table metric, the sine torque included, comes within 7 % of the
 %   paper's value; the responses then follow the published curves less
 %   closely, because the paper's tables disagree with its own figures.
 %
@@ -106,19 +106,19 @@ switch set
         g.Ki = [565.531096 3041.237729 71.11348748 188.2343736 0.6565698329 1305.181802]';
         g.Kd = [137.1522896 102.8120137 113.9384517 1.02441153 0.4189171128 10.20444477]';
     case 'table_step'
-        % fitted to the paper's Table 3, every metric within 10 % (repository: tools/fit_table_gains.m):
-        %   difference to the table: overshoot -9.0 %, adjustment time +9.0 %, peak time +4.9 %
-        %   rms vs the published curves, joints 1-6 [rad]: 0.177 0.067 0.049 0.046 0.155 0.061 (mean 0.093)
-        g.Kp = [179.5346724 1582.327205 372.9408767 100.7142999 3.99902397 140.7491131]';
-        g.Ki = [1217.021456 8356.023527 124.9820399 4.031584892 0.7844714445 559.0830427]';
-        g.Kd = [218.1809165 183.0850197 132.3721848 3.023725067 0.1942174349 1.248639522]';
+        % fitted to the paper's Table 3, every metric within 7 % (repository: tools/fit_table_gains.m):
+        %   difference to the table: overshoot -6.5 %, adjustment time +2.2 %, peak time +4.6 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.180 0.070 0.050 0.047 0.153 0.064 (mean 0.094)
+        g.Kp = [256.7012554 1596.275773 401.8132991 100.661355 4.05060168 143.0692025]';
+        g.Ki = [932.727508 8848.923214 150.0929111 3.252528323 0.7237707513 281.067476]';
+        g.Kd = [215.6867446 186.5841454 133.4611247 2.99317564 0.1898011875 0.9913144452]';
     case 'table_sine'
-        % fitted to the paper's Table 4, every metric within 10 % (repository: tools/fit_table_gains.m):
-        %   difference to the table: MSE -8.9 %, sum |tau| -8.9 %
-        %   rms vs the published curves, joints 1-6 [rad]: 0.143 0.060 0.195 0.023 0.177 0.021 (mean 0.103)
-        g.Kp = [71.85762901 10435.14108 845.8230593 186.2325337 7.587992021 6.990320416]';
-        g.Ki = [298.3944056 27631.60421 0.009513614826 13.11856888 2.704779655 1477.431058]';
-        g.Kd = [69.3834926 154.3642649 0.5739346068 65.15412446 3.923319473 59.51609494]';
+        % fitted to the paper's Table 4, every metric within 7 % (repository: tools/fit_table_gains.m):
+        %   difference to the table: MSE -6.5 %, sum |tau| -6.5 %
+        %   rms vs the published curves, joints 1-6 [rad]: 0.156 0.065 0.126 0.021 0.180 0.021 (mean 0.095)
+        g.Kp = [67.87299226 9223.410594 5398.24561 120.7169981 5.933568996 4.030312644]';
+        g.Ki = [253.4336053 8209.732758 0.002978199932 4.714104911 1.612902647 3518.89245]';
+        g.Kd = [58.26889444 31.95131098 0.7553609396 42.72543696 2.279695094 49.23097981]';
 end
 end
 

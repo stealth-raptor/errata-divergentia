@@ -34,7 +34,7 @@ function results = FOPID_conventional(gain_set)
 %
 %   'table': gains fitted to the paper's Tables 3 and 4 instead of its
 %   curves (repository: tools/fit_table_gains.m), one set per experiment.
-%   Every table metric, the sine torque included, comes within 10 % of the
+%   Every table metric, the sine torque included, comes within 7 % of the
 %   paper's value; the responses then follow the published curves less
 %   closely, because the paper's tables disagree with its own figures.
 %
@@ -118,7 +118,7 @@ switch set
         g.lambda = [1.662623676 0.6526495045 1.95 0.3800523434 0.7206369078 0.05006636685]';
         g.mu     = [1.425361662 0.5509011254 0.3845477049 1.453723122 0.7627629958 1.817543914]';
     case 'table_step'
-        % fitted to the paper's Table 3, every metric within 10 % (repository: tools/fit_table_gains.m):
+        % fitted to the paper's Table 3, every metric within 7 % (repository: tools/fit_table_gains.m):
         %   difference to the table: overshoot -6.4 %, adjustment time +3.1 %, peak time +1.6 %
         %   rms vs the published curves, joints 1-6 [rad]: 0.154 0.022 0.035 0.020 0.042 0.052 (mean 0.054)
         g.Kp     = [0.2428467899 0.0001745928079 373.7463299 116.4299858 0.349293042 922.5859329]';
@@ -127,7 +127,7 @@ switch set
         g.lambda = [0.7548443081 0.310490346 1.195627167 1.656903638 0.05 1.818377887]';
         g.mu     = [0.9877559563 0.853443053 0.6901203267 1.267785367 0.833341585 1.584901476]';
     case 'table_sine'
-        % fitted to the paper's Table 4, every metric within 10 % (repository: tools/fit_table_gains.m):
+        % fitted to the paper's Table 4, every metric within 7 % (repository: tools/fit_table_gains.m):
         %   difference to the table: MSE -5.8 %, sum |tau| -6.1 %
         %   rms vs the published curves, joints 1-6 [rad]: 0.078 0.070 0.083 0.037 0.181 0.023 (mean 0.079)
         g.Kp     = [394.5555484 0.003395151533 0.2309153858 68.93418034 30.13204845 24.15012276]';

@@ -10,7 +10,7 @@ kinematics, Eq. 21) in MATLAB, and extended with this work's optimiser, FOPSO-GW
   computed on the paper's 0.01 s logging grid.
 * **Controllers:**
   * PID and FOPID: gains fitted to the paper's Tables 3 and 4, every table metric (the
-    sine torque included) within 10 % of the paper's value and otherwise as close to the
+    sine torque included) within 7 % of the paper's value and otherwise as close to the
     published curves as possible, one set per experiment (`controller_gains(name,
     'table_step' | 'table_sine')`, `tools/fit_table_gains.m`). The paper's tables
     disagree with its own figures (Sect. 7), so these gains follow the published curves
@@ -35,7 +35,7 @@ kinematics, Eq. 21) in MATLAB, and extended with this work's optimiser, FOPSO-GW
 | Controller | Source | Overshoot (%) | Adjustment time (s) | Peak time (s) | Sine MSE (rad^2) | Sine sum \|tau\| (Nm) |
 |---|---|---:|---:|---:|---:|---:|
 | PID | Paper (Tables 3-4) | 54.6 | 2.44 | 1.39 | 2.27e-02 | 3.742e+04 |
-| PID | This work | 49.7 | 2.66 | 1.46 | 2.07e-02 | 3.411e+04 |
+| PID | This work | 51.1 | 2.49 | 1.45 | 2.12e-02 | 3.5e+04 |
 | FOPID | Paper (Tables 3-4) | 31.2 | 1.89 | 1.33 | 8.80e-03 | 2.569e+04 |
 | FOPID | This work | 29.2 | 1.95 | 1.35 | 8.29e-03 | 2.412e+04 |
 | FBPA-FOPID | Paper (Tables 3-4) | 22.1 | 1.43 | 1.09 | 3.70e-03 | 2.315e+04 |
@@ -44,7 +44,7 @@ kinematics, Eq. 21) in MATLAB, and extended with this work's optimiser, FOPSO-GW
 | FOPSO-GWO | This work | 13.6 | 1.35 | 1.11 | 1.88e-03 | 9610 |
 | **FOPSO-GWO-CC** | **This work (proposed)** | **11.0** | **1.24** | **1.09** | **1.62e-03** | **9609** |
 
-PID, FOPID: reproductions with the gains fitted to this table (every value within 10 %
+PID, FOPID: reproductions with the gains fitted to this table (every value within 7 %
 of the paper's), as close to the published curves as that allows (Sect. 6). FBPA-FOPID:
 the reproduction with the gains that make the simulation match its published curves. The
 paper publishes no gains. PSO-FOPID and the FOPSO-GWO variants: tuned by their optimisers
@@ -82,7 +82,7 @@ other step columns exclude it. Peaks are the largest joint; sums and total varia
 
 | Controller | Kick peak | Step peak after kick | Sine peak | Step sum \|tau\| after kick | Sine sum \|tau\| | Step total variation | Sine total variation |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| PID | 2.18e+05 | 1532 | 534.3 | 1.186e+04 | 3.411e+04 | 1018 | 5227 |
+| PID | 2.16e+05 | 1503 | 879.2 | 1.224e+04 | 3.5e+04 | 1054 | 6307 |
 | FOPID | 2.28e+05 | 3114 | 516.7 | 8928 | 2.412e+04 | 1072 | 2940 |
 | FBPA-FOPID | 8.17e+04 | 1495 | 494.8 | 6343 | 1.014e+04 | 934.7 | 1445 |
 | PSO-FOPID | 1.86e+05 | 855.8 | 290.8 | 6025 | 1.013e+04 | 794.6 | 643 |
@@ -313,7 +313,7 @@ PSO on at least 3 of the 4 seeds. That is H8, which beats PSO on all 4.
 | Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---|---:|---:|---:|---:|---:|---:|
 | PID | Paper figures | 46.2 | 53.8 | 18.1 | 8.3 | 150.2 | 77.8 |
-| PID | This work | 16.6 | 55.5 | 16.5 | 9.6 | 147.6 | 52.4 |
+| PID | This work | 14.5 | 56.0 | 17.5 | 10.0 | 150.2 | 58.1 |
 | FOPID | Paper figures | 37.6 | 38.1 | 5.9 | 9.3 | 85.0 | 30.7 |
 | FOPID | This work | 12.4 | 35.1 | 8.8 | 4.3 | 93.5 | 21.1 |
 | FBPA-FOPID | Paper figures | 29.0 | 25.0 | 10.5 | 2.5 | 33.1 | 26.9 |
@@ -327,7 +327,7 @@ PSO on at least 3 of the 4 seeds. That is H8, which beats PSO on all 4.
 | Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---|---:|---:|---:|---:|---:|---:|
 | PID | Paper figures | 2.12 | 2.17 | 2.31 | 1.42 | 4.60 | 1.31 |
-| PID | This work | 3.26 | 2.63 | 2.46 | 1.84 | 4.61 | 1.15 |
+| PID | This work | 1.99 | 2.64 | 2.47 | 2.07 | 4.66 | 1.14 |
 | FOPID | Paper figures | 2.38 | 1.90 | 2.00 | 1.35 | 2.71 | 1.34 |
 | FOPID | This work | 2.85 | 1.90 | 1.87 | 1.48 | 2.52 | 1.08 |
 | FBPA-FOPID | Paper figures | 1.78 | 1.44 | 1.58 | 1.26 | 1.80 | 1.28 |
@@ -341,7 +341,7 @@ PSO on at least 3 of the 4 seeds. That is H8, which beats PSO on all 4.
 | Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---|---:|---:|---:|---:|---:|---:|
 | PID | Paper figures | 1.65 | 1.35 | 1.52 | 1.29 | 1.79 | 1.04 |
-| PID | This work | 1.52 | 1.31 | 1.46 | 1.73 | 1.68 | 1.05 |
+| PID | This work | 1.49 | 1.31 | 1.46 | 1.73 | 1.68 | 1.05 |
 | FOPID | Paper figures | 1.52 | 1.34 | 1.95 | 1.29 | 1.58 | 1.10 |
 | FOPID | This work | 1.49 | 1.32 | 1.37 | 1.29 | 1.61 | 1.03 |
 | FBPA-FOPID | Paper figures | 1.37 | 1.25 | 1.43 | 1.36 | 1.06 | 1.08 |
@@ -355,7 +355,7 @@ PSO on at least 3 of the 4 seeds. That is H8, which beats PSO on all 4.
 | Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---|---:|---:|---:|---:|---:|---:|
 | PID | Paper figures | 7.82e-02 | 3.12e-03 | 1.58e-02 | 1.34e-03 | 3.69e-02 | 4.43e-04 |
-| PID | This work | 8.15e-02 | 6.53e-04 | 2.84e-02 | 5.77e-04 | 1.29e-02 | 1.69e-05 |
+| PID | This work | 1.03e-01 | 1.20e-03 | 8.39e-04 | 8.16e-04 | 2.11e-02 | 2.24e-05 |
 | FOPID | Paper figures | 1.84e-02 | 1.91e-03 | 6.67e-03 | 1.17e-03 | 2.44e-02 | 4.06e-04 |
 | FOPID | This work | 2.29e-02 | 3.74e-03 | 6.71e-03 | 3.76e-03 | 1.23e-02 | 2.66e-04 |
 | FBPA-FOPID | Paper figures | 1.13e-02 | 1.40e-03 | 3.85e-03 | 1.42e-03 | 3.71e-03 | 3.37e-04 |
@@ -369,7 +369,7 @@ PSO on at least 3 of the 4 seeds. That is H8, which beats PSO on all 4.
 | Controller | Source | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---|---:|---:|---:|---:|---:|---:|
 | PID | Paper figures | 8.141e+04 | 2.819e+04 | 1.95e+04 | 8347 | 1467 | 5.803 |
-| PID | This work | 2.234e+04 | 1.166e+05 | 6.089e+04 | 3318 | 944.2 | 573.5 |
+| PID | This work | 2.255e+04 | 1.233e+05 | 6.017e+04 | 2740 | 936.3 | 302.4 |
 | FOPID | Paper figures | 1.442e+05 | 3.271e+04 | 3.338e+04 | 1.225e+04 | 1880 | 10.04 |
 | FOPID | This work | 2.425e+04 | 7.984e+04 | 3.689e+04 | 2339 | 1183 | 202.5 |
 | FBPA-FOPID | Paper figures | 9.094e+04 | 3.12e+04 | 2.224e+04 | 8262 | 1409 | 5.614 |
@@ -384,8 +384,8 @@ rms of q (this work) - q (paper's figure), rad.
 
 | Controller | Experiment | J1 | J2 | J3 | J4 | J5 | J6 | mean |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| PID | step | 0.177 | 0.067 | 0.049 | 0.046 | 0.155 | 0.061 | 0.093 |
-| PID | sine | 0.143 | 0.060 | 0.195 | 0.023 | 0.177 | 0.021 | 0.103 |
+| PID | step | 0.180 | 0.070 | 0.050 | 0.047 | 0.153 | 0.064 | 0.094 |
+| PID | sine | 0.156 | 0.065 | 0.126 | 0.021 | 0.180 | 0.021 | 0.095 |
 | FOPID | step | 0.154 | 0.022 | 0.035 | 0.020 | 0.042 | 0.052 | 0.054 |
 | FOPID | sine | 0.078 | 0.070 | 0.083 | 0.037 | 0.181 | 0.023 | 0.079 |
 | FBPA-FOPID | step | 0.026 | 0.027 | 0.038 | 0.053 | 0.052 | 0.044 | 0.040 |
@@ -417,9 +417,9 @@ consistent, are much smaller. See docs/audit_report.md, Sect. 3.
 
 | | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---:|---:|---:|---:|---:|---:|
-| Kp | 179.5 | 1582 | 372.9 | 100.7 | 3.999 | 140.7 |
-| Ki | 1217 | 8356 | 125 | 4.032 | 0.7845 | 559.1 |
-| Kd | 218.2 | 183.1 | 132.4 | 3.024 | 0.1942 | 1.249 |
+| Kp | 256.7 | 1596 | 401.8 | 100.7 | 4.051 | 143.1 |
+| Ki | 932.7 | 8849 | 150.1 | 3.253 | 0.7238 | 281.1 |
+| Kd | 215.7 | 186.6 | 133.5 | 2.993 | 0.1898 | 0.9913 |
 | lambda | 1 | 1 | 1 | 1 | 1 | 1 |
 | mu | 1 | 1 | 1 | 1 | 1 | 1 |
 
@@ -427,9 +427,9 @@ consistent, are much smaller. See docs/audit_report.md, Sect. 3.
 
 | | J1 | J2 | J3 | J4 | J5 | J6 |
 |---|---:|---:|---:|---:|---:|---:|
-| Kp | 71.86 | 1.044e+04 | 845.8 | 186.2 | 7.588 | 6.99 |
-| Ki | 298.4 | 2.763e+04 | 0.009514 | 13.12 | 2.705 | 1477 |
-| Kd | 69.38 | 154.4 | 0.5739 | 65.15 | 3.923 | 59.52 |
+| Kp | 67.87 | 9223 | 5398 | 120.7 | 5.934 | 4.03 |
+| Ki | 253.4 | 8210 | 0.002978 | 4.714 | 1.613 | 3519 |
+| Kd | 58.27 | 31.95 | 0.7554 | 42.73 | 2.28 | 49.23 |
 | lambda | 1 | 1 | 1 | 1 | 1 | 1 |
 | mu | 1 | 1 | 1 | 1 | 1 | 1 |
 
